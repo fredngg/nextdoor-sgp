@@ -3,44 +3,66 @@ import { type NextRequest, NextResponse } from "next/server"
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const query = searchParams.get("q")
+    const postalCode = searchParams.get("postalCode")
 
-    if (!query) {
-      return NextResponse.json({ error: "Query parameter is required" }, { status: 400 })
+    if (!postalCode) {
+      return NextResponse.json({ error: "Postal code is required" }, { status: 400 })
     }
 
-    // Get OneMap token from environment variable
+    // Debug environment variable
+    console.log("🔍 DEBUG: Checking ONEMAP_API_TOKEN environment variable...")
     const oneMapToken = process.env.ONEMAP_API_TOKEN
 
     if (!oneMapToken) {
-      console.error("❌ ONEMAP_API_TOKEN not found in environment variables")
-      return NextResponse.json({ error: "OneMap API token not configured" }, { status: 500 })
+      console.error("❌ ERROR: ONEMAP_API_TOKEN environment variable is not set!")
+      return NextResponse.json(
+        { error: "OneMap API token is not configured. Please contact support." },
+        { status: 500 },
+      )
     }
 
-    console.log("🔍 Searching OneMap for postal code:", query)
+    console.log("✅ DEBUG: ONEMAP_API_TOKEN found, length:", oneMapToken.length)
+    console.log("🔍 DEBUG: Searching for postal code:", postalCode)
 
-    // Search OneMap API
-    const oneMapResponse = await fetch(
-      `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(query)}&returnGeom=Y&getAddrDetails=Y`,
-      {
-        headers: {
-          Authorization: `Bearer ${oneMapToken}`,
-          "Content-Type": "application/json",
-        },
+    const oneMapUrl = `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${postalCode}&returnGeom=Y&getAddrDetails=Y&pageNum=1`
+    console.log("🌐 DEBUG: OneMap URL:", oneMapUrl)
+
+    const response = await fetch(oneMapUrl, {
+      headers: {
+        Authorization: `Bearer ${oneMapToken}`,
+        "Content-Type": "application/json",
       },
-    )
+    })
 
-    if (!oneMapResponse.ok) {
-      console.error("OneMap API error:", oneMapResponse.status, oneMapResponse.statusText)
-      return NextResponse.json({ error: "OneMap API request failed" }, { status: oneMapResponse.status })
+    console.log("📡 DEBUG: OneMap response status:", response.status)
+    console.log("📡 DEBUG: OneMap response headers:", Object.fromEntries(response.headers.entries()))
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("❌ ERROR: OneMap API failed with status:", response.status)
+      console.error("❌ ERROR: OneMap error response:", errorText)
+
+      return NextResponse.json(
+        {
+          error: `OneMap API error: ${response.status} ${response.statusText}`,
+          details: errorText,
+        },
+        { status: response.status },
+      )
     }
 
-    const data = await oneMapResponse.json()
-    console.log("✅ OneMap API response received")
+    const data = await response.json()
+    console.log("✅ DEBUG: OneMap response data:", JSON.stringify(data, null, 2))
 
     return NextResponse.json(data)
   } catch (error) {
-    console.error("API route error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("💥 ERROR: Unexpected error in onemap-search API:", error)
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    )
   }
 }
