@@ -89,7 +89,7 @@ export default function NextDoorSG() {
         {
           headers: {
             Authorization:
-              "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3NWI5MTM2MmRkYzNhMThjODk2M2EyNDhmNjllMmExZSIsImlzcyI6Imh0dHA6Ly9pbnRlcm5hbC1hbGItb20tcHJkZXppdC1pdC1uZXctMTYzMzc5OTU0Mi5hcC1zb3V0aGVhc3QtMS5lbGIuYW1hem9uYXdzLmNvbS9hcGkvdjIvdXNlci9wYXNzd29yZCIsImlhdCI6MTc0ODM0OTE4MSwiZXhwIjoxNzQ4NjA4MzgxLCJuYmYiOjE3NDgzNDkxODEsImp0aSI6Ino1djRpelZGQnJhaThvVkciLCJ1c2VyX2lkIjo3MzI1LCJmb3JldmVyIjpmYWxzZX0.ugGaWGU0ZYIvtfx5Zs-pYpuumWMasoZQ7e_Ol9yJJtI",
+              "Bearer REDACTED",
           },
         },
       )
