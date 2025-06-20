@@ -74,53 +74,19 @@ export default function CommunityPage() {
       setLoading(true)
       setError(null)
 
-      console.log("🔍 DEBUG: Fetching community data for slug:", slug)
-
-      // Debug Supabase configuration
-      console.log("🔍 DEBUG: NEXT_PUBLIC_SUPABASE_URL:", process.env.NEXT_PUBLIC_SUPABASE_URL)
-      console.log("🔍 DEBUG: NEXT_PUBLIC_SUPABASE_ANON_KEY length:", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length)
-
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-      if (supabaseUrl && supabaseAnonKey) {
-        const testUrl = `${supabaseUrl}/rest/v1/communities?select=slug&limit=1`
-        console.log("🌐 DEBUG: Attempting direct fetch to:", testUrl)
-        try {
-          const response = await fetch(testUrl, {
-            headers: {
-              apikey: supabaseAnonKey,
-              Authorization: `Bearer ${supabaseAnonKey}`,
-              "Content-Type": "application/json",
-            },
-          })
-          console.log("📡 DEBUG: Direct fetch response status:", response.status)
-          const responseData = await response.json()
-          console.log("📡 DEBUG: Direct fetch response data:", responseData)
-          if (!response.ok) {
-            console.error("❌ ERROR: Direct fetch failed with status:", response.status, responseData)
-          }
-        } catch (e) {
-          console.error("💥 ERROR: Direct fetch threw an error:", e)
-        }
-      } else {
-        console.warn("⚠️ WARNING: Supabase URL or Anon Key is missing, skipping direct fetch test")
-      }
+      console.log("Fetching community data for slug:", slug)
 
       // Check if community exists
-      console.log("🔍 DEBUG: Querying communities table...")
       const { data: communityData, error: communityError } = await supabase
         .from("communities")
         .select("*")
         .eq("slug", slug)
         .single()
 
-      console.log("📡 DEBUG: Community query result:", { data: communityData, error: communityError })
-
       if (communityError) {
         if (communityError.code === "PGRST116") {
           // Community not found, create it with mock data
-          console.log("ℹ️ INFO: Community not found, creating new community")
+          console.log("Community not found, creating new community")
 
           const communityName = slug
             .split("-")
@@ -144,18 +110,16 @@ export default function CommunityPage() {
             .single()
 
           if (insertError) {
-            console.error("❌ ERROR: Failed to create community:", insertError)
+            console.error("Failed to create community:", insertError)
             throw new Error(`Failed to create community: ${insertError.message}`)
           }
 
-          console.log("✅ SUCCESS: Created new community:", newCommunity)
           setCommunity(newCommunity)
         } else {
-          console.error("❌ ERROR: Error fetching community:", communityError)
+          console.error("Error fetching community:", communityError)
           throw new Error(`Failed to fetch community: ${communityError.message}`)
         }
       } else {
-        console.log("✅ SUCCESS: Found existing community:", communityData)
         setCommunity(communityData)
       }
 
@@ -166,10 +130,9 @@ export default function CommunityPage() {
         .eq("community_slug", slug)
 
       if (countError) {
-        console.error("❌ ERROR: Error fetching member count:", countError)
+        console.error("Error fetching member count:", countError)
         setMemberCount(0)
       } else {
-        console.log("✅ SUCCESS: Member count:", count)
         setMemberCount(count || 0)
       }
 
@@ -181,11 +144,10 @@ export default function CommunityPage() {
         .order("created_at", { ascending: false })
 
       if (postsError) {
-        console.error("❌ ERROR: Error fetching posts:", postsError)
+        console.error("Error fetching posts:", postsError)
         // Don't throw error for posts, just set empty array
         setPosts([])
       } else {
-        console.log("✅ SUCCESS: Found posts:", postsData?.length || 0)
         // Fetch comments and vote data for each post
         const postsWithCommentsAndVotes = await Promise.all(
           (postsData || []).map(async (post) => {
@@ -198,7 +160,7 @@ export default function CommunityPage() {
                 .order("created_at", { ascending: true })
 
               if (commentsError) {
-                console.error(`❌ ERROR: Failed to fetch comments for post ${post.id}:`, commentsError)
+                console.error(`Failed to fetch comments for post ${post.id}:`, commentsError)
               }
 
               // Fetch vote data for the post
@@ -252,7 +214,7 @@ export default function CommunityPage() {
                       user_vote: userCommentVote,
                     }
                   } catch (error) {
-                    console.error(`❌ ERROR: Error processing comment ${comment.id}:`, error)
+                    console.error(`Error processing comment ${comment.id}:`, error)
                     return {
                       ...comment,
                       vote_count: 0,
@@ -269,7 +231,7 @@ export default function CommunityPage() {
                 user_vote: userPostVote,
               }
             } catch (error) {
-              console.error(`❌ ERROR: Error processing post ${post.id}:`, error)
+              console.error(`Error processing post ${post.id}:`, error)
               return {
                 ...post,
                 comments: [],
@@ -283,7 +245,7 @@ export default function CommunityPage() {
         setPosts(postsWithCommentsAndVotes)
       }
     } catch (err) {
-      console.error("💥 ERROR: Error fetching community data:", err)
+      console.error("Error fetching community data:", err)
       setError(err instanceof Error ? err.message : "An unknown error occurred while loading the community")
     } finally {
       setLoading(false)
