@@ -39,29 +39,41 @@ export function CommunitySidebar({ address, area, region, communitySlug, onShowM
       setLoading(true)
 
       // Get total member count
+      console.log("🔍 DEBUG: Fetching member count for community:", communitySlug)
+
       const { count, error: countError } = await supabase
         .from("community_members")
         .select("*", { count: "exact", head: true })
-        .eq("community_slug", communitySlug)
+        .match({ community_slug: communitySlug })
+
+      console.log("📡 DEBUG: Member count query result:", { count, countError })
 
       if (countError) {
-        console.error("Error fetching member count:", countError)
+        console.error("❌ DEBUG: Member count error:", countError)
       } else {
+        console.log("✅ DEBUG: Member count:", count)
         setMemberCount(count || 0)
       }
 
       // Check if current user is a member
       if (user) {
+        console.log("🔍 DEBUG: Checking membership for user:", user.id, "in community:", communitySlug)
+
         const { data: membership, error: membershipError } = await supabase
           .from("community_members")
           .select("*")
-          .eq("user_id", user.id)
-          .eq("community_slug", communitySlug)
-          .single()
+          .match({
+            user_id: user.id,
+            community_slug: communitySlug,
+          })
+          .maybeSingle()
 
-        if (membershipError && membershipError.code !== "PGRST116") {
-          console.error("Error checking membership:", membershipError)
+        console.log("📡 DEBUG: Membership query result:", { membership, membershipError })
+
+        if (membershipError) {
+          console.error("❌ DEBUG: Membership query error:", membershipError)
         } else {
+          console.log("✅ DEBUG: Membership status:", !!membership)
           setHasJoined(!!membership)
         }
       }

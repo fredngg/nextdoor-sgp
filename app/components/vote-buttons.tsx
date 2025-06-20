@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { ChevronUp, ChevronDown } from 'lucide-react'
+import { ChevronUp, ChevronDown } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/components/ui/use-toast"
@@ -45,8 +45,8 @@ export function VoteButtons({ itemId, itemType, initialVoteCount = 0, initialUse
       }
 
       // Calculate vote count (upvotes - downvotes)
-      const upvotes = votes?.filter(vote => vote.vote_type === "up").length || 0
-      const downvotes = votes?.filter(vote => vote.vote_type === "down").length || 0
+      const upvotes = votes?.filter((vote) => vote.vote_type === "up").length || 0
+      const downvotes = votes?.filter((vote) => vote.vote_type === "down").length || 0
       setVoteCount(upvotes - downvotes)
 
       // Get user's current vote if logged in
@@ -106,10 +106,7 @@ export function VoteButtons({ itemId, itemType, initialVoteCount = 0, initialUse
       if (existingVote) {
         if (existingVote.vote_type === voteType) {
           // Same vote clicked - remove it (toggle off)
-          const { error: deleteError } = await supabase
-            .from(tableName)
-            .delete()
-            .eq("id", existingVote.id)
+          const { error: deleteError } = await supabase.from(tableName).delete().eq("id", existingVote.id)
 
           if (deleteError) {
             throw new Error(`Failed to remove vote: ${deleteError.message}`)
@@ -134,13 +131,11 @@ export function VoteButtons({ itemId, itemType, initialVoteCount = 0, initialUse
         }
       } else {
         // No existing vote - create new one
-        const { error: insertError } = await supabase
-          .from(tableName)
-          .insert({
-            [columnName]: itemId,
-            vote_type: voteType,
-            user_id: user.id,
-          })
+        const { error: insertError } = await supabase.from(tableName).insert({
+          [columnName]: itemId,
+          vote_type: voteType,
+          user_id: user.id,
+        })
 
         if (insertError) {
           throw new Error(`Failed to create vote: ${insertError.message}`)
@@ -152,8 +147,7 @@ export function VoteButtons({ itemId, itemType, initialVoteCount = 0, initialUse
 
       // Update local state
       setUserVote(newUserVote)
-      setVoteCount(prev => prev + voteCountChange)
-
+      setVoteCount((prev) => prev + voteCountChange)
     } catch (error) {
       console.error("Error voting:", error)
       toast({
@@ -179,21 +173,19 @@ export function VoteButtons({ itemId, itemType, initialVoteCount = 0, initialUse
       >
         <ChevronUp className="h-4 w-4" />
       </Button>
-      
-      <span className={`text-sm font-medium min-w-[2rem] text-center ${
-        voteCount > 0 ? "text-green-600" : 
-        voteCount < 0 ? "text-red-600" : 
-        "text-gray-500"
-      }`}>
+
+      <span
+        className={`text-sm font-medium min-w-[2rem] text-center ${
+          voteCount > 0 ? "text-green-600" : voteCount < 0 ? "text-red-600" : "text-gray-500"
+        }`}
+      >
         {voteCount}
       </span>
-      
+
       <Button
         variant="ghost"
         size="sm"
-        className={`h-8 w-8 p-0 hover:bg-red-50 ${
-          userVote === "down" ? "bg-red-100 text-red-600" : "text-gray-500"
-        }`}
+        className={`h-8 w-8 p-0 hover:bg-red-50 ${userVote === "down" ? "bg-red-100 text-red-600" : "text-gray-500"}`}
         onClick={() => handleVote("down")}
         disabled={isVoting}
       >

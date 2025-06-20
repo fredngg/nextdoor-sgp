@@ -58,16 +58,16 @@ export default function MePage() {
       const { data, error } = await supabase
         .from("community_members")
         .select(`
-          id,
-          community_slug,
-          joined_at,
-          communities (
-            name,
-            area,
-            region,
-            slug
-          )
-        `)
+         id,
+         community_slug,
+         joined_at,
+         communities (
+           name,
+           area,
+           region,
+           slug
+         )
+       `)
         .eq("user_id", user.id)
         .order("joined_at", { ascending: false })
 

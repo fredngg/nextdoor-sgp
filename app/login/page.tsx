@@ -12,7 +12,7 @@ import { Navigation } from "../components/navigation"
 import { Footer } from "../components/footer"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/components/ui/use-toast"
-import { Loader2 } from 'lucide-react'
+import { Loader2 } from "lucide-react"
 import Link from "next/link"
 
 export default function LoginPage() {
