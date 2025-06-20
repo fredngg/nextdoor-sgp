@@ -30,42 +30,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
 
   const fetchDisplayName = async (userId: string) => {
-    try {
-      console.log("🔄 AuthContext: Fetching display name for user:", userId)
-      const name = await getUserDisplayName(userId)
-      console.log("📝 AuthContext: Display name result:", name)
+    console.log("🔄 AuthContext: STARTING fetchDisplayName for user:", userId)
 
-      setDisplayName(name)
+    try {
+      console.log("🔄 AuthContext: About to call getUserDisplayName...")
+
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          console.log("⏰ AuthContext: fetchDisplayName TIMEOUT after 3 seconds")
+          reject(new Error("Display name fetch timeout"))
+        }, 3000)
+      })
+
+      const displayNamePromise = getUserDisplayName(userId)
+      console.log("🔄 AuthContext: Created promises, starting race...")
+
+      const name = await Promise.race([displayNamePromise, timeoutPromise])
+      console.log("✅ AuthContext: fetchDisplayName SUCCESS, result:", name)
+
+      setDisplayName(name as string | null)
       const needsName = !name
       setNeedsDisplayName(needsName)
 
       console.log("🎯 AuthContext: needsDisplayName set to:", needsName)
     } catch (error) {
-      console.error("💥 AuthContext: Error fetching display name:", error)
+      console.error("💥 AuthContext: fetchDisplayName ERROR:", error)
+      // On timeout or error, assume user needs to set display name
+      setDisplayName(null)
       setNeedsDisplayName(true)
+      console.log("🔧 AuthContext: Set fallback state after error")
     }
+
+    console.log("🏁 AuthContext: fetchDisplayName COMPLETED")
   }
 
   useEffect(() => {
+    console.log("🚀 AuthContext: useEffect STARTING")
+
     // Get initial session
     const getInitialSession = async () => {
+      console.log("🔄 AuthContext: getInitialSession STARTING")
+
       try {
-        console.log("🚀 AuthContext: Getting initial session")
+        console.log("🔄 AuthContext: About to call supabase.auth.getSession()...")
+
         const {
           data: { session },
         } = await supabase.auth.getSession()
 
-        console.log("📋 AuthContext: Initial session:", session?.user?.id || "No session")
+        console.log("✅ AuthContext: getSession SUCCESS:", session?.user?.id || "No session")
 
         setSession(session)
         setUser(session?.user ?? null)
 
         if (session?.user) {
+          console.log("🔄 AuthContext: User found, calling fetchDisplayName...")
           await fetchDisplayName(session.user.id)
+          console.log("✅ AuthContext: fetchDisplayName completed in getInitialSession")
+        } else {
+          console.log("ℹ️ AuthContext: No user in initial session")
         }
       } catch (error) {
-        console.error("💥 AuthContext: Error getting initial session:", error)
+        console.error("💥 AuthContext: getInitialSession ERROR:", error)
+        setSession(null)
+        setUser(null)
+        setDisplayName(null)
+        setNeedsDisplayName(false)
       } finally {
+        console.log("🏁 AuthContext: Setting isLoading to false")
         setIsLoading(false)
       }
     }
@@ -73,30 +106,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     getInitialSession()
 
     // Listen for auth changes
+    console.log("🔄 AuthContext: Setting up onAuthStateChange listener...")
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("🔄 AuthContext: Auth state change:", event, session?.user?.id || "No user")
+      console.log("🔔 AuthContext: onAuthStateChange TRIGGERED:", event, session?.user?.id || "No user")
+      console.log("🔔 AuthContext: Session details:", {
+        hasSession: !!session,
+        hasUser: !!session?.user,
+        hasAccessToken: !!session?.access_token,
+        userId: session?.user?.id,
+      })
 
       setSession(session)
       setUser(session?.user ?? null)
 
       if (session?.user) {
+        console.log("🔄 AuthContext: User found in auth change, calling fetchDisplayName...")
         await fetchDisplayName(session.user.id)
+        console.log("✅ AuthContext: fetchDisplayName completed in onAuthStateChange")
       } else {
+        console.log("ℹ️ AuthContext: No user in auth change, clearing display name")
         setDisplayName(null)
         setNeedsDisplayName(false)
       }
 
+      console.log("🏁 AuthContext: Setting isLoading to false after auth change")
       setIsLoading(false)
     })
 
+    console.log("✅ AuthContext: Auth listener setup complete")
+
     return () => {
+      console.log("🧹 AuthContext: Cleaning up subscription")
       subscription.unsubscribe()
     }
   }, [])
 
   const signIn = async (email: string) => {
+    console.log("🔄 AuthContext: signIn called with email:", email)
+
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email,
@@ -104,19 +154,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       })
+
+      console.log("✅ AuthContext: signInWithOtp completed, error:", error)
       return { error }
     } catch (error) {
-      console.error("Error signing in:", error)
+      console.error("💥 AuthContext: signIn ERROR:", error)
       return { error: error as Error }
     }
   }
 
   const signOut = async () => {
+    console.log("🔄 AuthContext: signOut called")
+
     try {
       await supabase.auth.signOut()
+      console.log("✅ AuthContext: signOut completed")
       router.push("/")
     } catch (error) {
-      console.error("Error signing out:", error)
+      console.error("💥 AuthContext: signOut ERROR:", error)
     }
   }
 
