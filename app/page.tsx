@@ -46,6 +46,10 @@ export default function NextDoorSG() {
 
   // Effect to handle hero visibility based on search results
   useEffect(() => {
+    console.log("👁️ DEBUG [page.tsx]: Hero visibility effect triggered:", {
+      hasLocationData: !!locationData,
+      showHero: locationData ? false : true,
+    })
     if (locationData) {
       setShowHero(false)
     } else {
@@ -65,12 +69,17 @@ export default function NextDoorSG() {
     setError("")
     setLocationData(null)
 
+    console.log("🔍 DEBUG [page.tsx]: Starting search for postal code:", postalCode.trim())
+    console.log("🔍 DEBUG [page.tsx]: Form submission triggered")
+
     try {
       // Validate postal code format
       if (!/^\d{6}$/.test(postalCode.trim())) {
         setError("Please enter a valid 6-digit Singapore postal code")
         return
       }
+
+      console.log("✅ DEBUG [page.tsx]: Postal code validation passed:", postalCode.trim())
 
       console.log("Searching for postal code:", postalCode)
 
@@ -81,10 +90,23 @@ export default function NextDoorSG() {
         return
       }
 
-      console.log("Found postal sector:", postalSector)
+      console.log("✅ DEBUG [page.tsx]: Postal sector lookup successful:", {
+        sector: postalSector.sector_code,
+        district: postalSector.district_name,
+        region: postalSector.region,
+        postalCode: postalCode,
+      })
 
       // Then fetch detailed address information from OneMap via our API route
+      console.log("🌐 DEBUG [page.tsx]: About to call OneMap API via /api/onemap-search")
+      console.log("🌐 DEBUG [page.tsx]: API URL:", `/api/onemap-search?postalCode=${postalCode}`)
       const response = await fetch(`/api/onemap-search?postalCode=${postalCode}`)
+
+      console.log("📡 DEBUG [page.tsx]: OneMap API response received:", {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText,
+      })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
@@ -92,6 +114,12 @@ export default function NextDoorSG() {
       }
 
       const data = await response.json()
+
+      console.log("📊 DEBUG [page.tsx]: OneMap response data:", {
+        resultsCount: data.results?.length || 0,
+        firstResult: data.results?.[0] || null,
+        rawData: data,
+      })
 
       if (!data.results || data.results.length === 0) {
         setError("We couldn't find detailed information for this postal code. Please try again.")
@@ -107,10 +135,27 @@ export default function NextDoorSG() {
       const latitude = Number.parseFloat(result.LATITUDE)
       const longitude = Number.parseFloat(result.LONGITUDE)
 
-      console.log("OneMap result:", result)
+      console.log("🏠 DEBUG [page.tsx]: Extracted address data:", {
+        block,
+        street,
+        roadName,
+        fullAddress,
+        buildingName,
+        latitude,
+        longitude,
+        coordinates: `${latitude}, ${longitude}`,
+      })
 
       // Classify the address type
       const addressClassification = classifyAddress(buildingName, fullAddress, street)
+
+      console.log("🏷️ DEBUG [page.tsx]: Address classification result:", {
+        isCommercial: addressClassification.isCommercial,
+        isHDB: addressClassification.isHDB,
+        isCondo: addressClassification.isCondo,
+        buildingType: addressClassification.buildingType,
+        confidence: addressClassification.confidence,
+      })
 
       // Generate community information based on postal sector
       const community = generateCommunityName(
@@ -122,7 +167,26 @@ export default function NextDoorSG() {
       )
       const communitySlug = generateCommunitySlug(community)
 
-      console.log("Generated community:", community, "slug:", communitySlug)
+      console.log("🏘️ DEBUG [page.tsx]: Community generation complete:", {
+        community,
+        communitySlug,
+        region: postalSector.region,
+        district: postalSector.district_name,
+      })
+
+      console.log("✅ DEBUG [page.tsx]: Final location data object:", {
+        postalCode,
+        block,
+        street,
+        area: postalSector.district_name,
+        community,
+        communitySlug,
+        region: postalSector.region,
+        fullAddress,
+        buildingName,
+        addressClassification,
+        coordinates: { latitude, longitude },
+      })
 
       setLocationData({
         postalCode,
@@ -140,14 +204,21 @@ export default function NextDoorSG() {
         postalSector,
       })
     } catch (err) {
-      console.error("Error fetching location data:", err)
+      console.error("❌ DEBUG [page.tsx]: Error in handleSubmit:", {
+        error: err,
+        message: err instanceof Error ? err.message : "Unknown error",
+        stack: err instanceof Error ? err.stack : undefined,
+        postalCode: postalCode.trim(),
+      })
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.")
     } finally {
+      console.log("🏁 DEBUG [page.tsx]: Search process completed, loading state set to false")
       setLoading(false)
     }
   }
 
   const handleClearSearch = () => {
+    console.log("🧹 DEBUG [page.tsx]: Clearing search results and resetting form")
     setPostalCode("")
     setLocationData(null)
     setError("")
