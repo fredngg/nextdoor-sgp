@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Plus, ShoppingCart, Clock, Users, MapPin, Send, ExternalLink } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Plus, ShoppingCart, Clock, Users, MapPin, Send, ExternalLink, MessageCircle, Copy, Check } from "lucide-react"
 import { CreateGroupBuyModal } from "./create-group-buy-modal"
 import Link from "next/link"
 
@@ -40,6 +41,7 @@ export function GroupBuySection({ communitySlug, highlightedGroupBuy }: GroupBuy
   const [groupBuys, setGroupBuys] = useState<GroupBuy[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [copiedGroupBuy, setCopiedGroupBuy] = useState<string | null>(null)
 
   useEffect(() => {
     fetchGroupBuys()
@@ -114,23 +116,14 @@ export function GroupBuySection({ communitySlug, highlightedGroupBuy }: GroupBuy
     }
   }
 
-  const generateTelegramLink = (groupBuy: GroupBuy) => {
+  const generateShareMessage = (groupBuy: GroupBuy) => {
     const baseUrl = window.location.origin
     const groupBuyUrl = `${baseUrl}/community/${communitySlug}/groupbuy/${groupBuy.id}`
 
     const savings = groupBuy.price_individual - groupBuy.price_group
     const savingsPercent = Math.round((savings / groupBuy.price_individual) * 100)
 
-    const categoryDisplayNames = {
-      groceries: "Groceries",
-      electronics: "Electronics",
-      household: "Household Items",
-      clothing: "Clothing & Fashion",
-      books: "Books & Media",
-      general: "General Items",
-    }
-
-    const message = `🛒 *Group Buy Alert!*
+    return `🛒 *Group Buy Alert!*
 
 📦 *${groupBuy.title}*
 ${groupBuy.description}
@@ -144,25 +137,70 @@ ${groupBuy.description}
 📍 *Pickup:* ${groupBuy.pickup_location}
 ⏰ *Deadline:* ${new Date(groupBuy.deadline).toLocaleDateString()}
 
-Join now: ${groupBuyUrl}
-
-#GroupBuy #${categoryDisplayNames[groupBuy.category]?.replace(/\s+/g, "") || "General"}`
-
-    const encodedMessage = encodeURIComponent(message)
-    return `tg://msg?text=${encodedMessage}`
+Join now: ${groupBuyUrl}`
   }
 
   const handleTelegramShare = (groupBuy: GroupBuy) => {
-    const telegramLink = generateTelegramLink(groupBuy)
-    console.log("📱 Opening Telegram with link:", telegramLink)
+    const message = generateShareMessage(groupBuy)
+    const encodedMessage = encodeURIComponent(message)
+    const telegramLink = `tg://msg?text=${encodedMessage}`
 
-    // Try to open Telegram app
+    console.log("📱 Opening Telegram with link:", telegramLink)
     window.location.href = telegramLink
 
     toast({
       title: "Opening Telegram",
       description: "Telegram should open with the group buy message ready to share!",
     })
+  }
+
+  const handleWhatsAppShare = (groupBuy: GroupBuy) => {
+    const message = generateShareMessage(groupBuy)
+    const encodedMessage = encodeURIComponent(message)
+    const whatsappUrl = `https://wa.me/?text=${encodedMessage}`
+
+    console.log("📱 Opening WhatsApp with message")
+    window.open(whatsappUrl, "_blank")
+
+    toast({
+      title: "Opening WhatsApp",
+      description: "WhatsApp should open with the group buy message ready to share!",
+    })
+  }
+
+  const handleCopyLink = async (groupBuy: GroupBuy) => {
+    const message = generateShareMessage(groupBuy)
+
+    try {
+      await navigator.clipboard.writeText(message)
+      setCopiedGroupBuy(groupBuy.id)
+      toast({
+        title: "Copied to Clipboard!",
+        description: "Share message copied. Perfect for WhatsApp, SMS, or any messaging app!",
+      })
+
+      // Reset the copied state after 2 seconds
+      setTimeout(() => setCopiedGroupBuy(null), 2000)
+    } catch (error) {
+      console.error("Failed to copy:", error)
+      // Fallback: copy just the URL
+      const baseUrl = window.location.origin
+      const groupBuyUrl = `${baseUrl}/community/${communitySlug}/groupbuy/${groupBuy.id}`
+
+      try {
+        await navigator.clipboard.writeText(groupBuyUrl)
+        toast({
+          title: "Link Copied!",
+          description: "Group buy link copied to clipboard",
+        })
+      } catch (fallbackError) {
+        toast({
+          title: "Copy Failed",
+          description: "Unable to copy to clipboard. Please copy the URL manually.",
+          variant: "destructive",
+        })
+      }
+    }
   }
 
   const getStatusColor = (status: string) => {
@@ -271,14 +309,37 @@ Join now: ${groupBuyUrl}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleTelegramShare(groupBuy)}
-                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                        >
-                          <Send className="h-4 w-4" />
-                        </Button>
+                        {/* Share Dropdown */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                            >
+                              <Send className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={() => handleTelegramShare(groupBuy)} className="cursor-pointer">
+                              <Send className="h-4 w-4 mr-2 text-blue-500" />
+                              Share on Telegram
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleWhatsAppShare(groupBuy)} className="cursor-pointer">
+                              <MessageCircle className="h-4 w-4 mr-2 text-green-500" />
+                              Share on WhatsApp
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCopyLink(groupBuy)} className="cursor-pointer">
+                              {copiedGroupBuy === groupBuy.id ? (
+                                <Check className="h-4 w-4 mr-2 text-green-500" />
+                              ) : (
+                                <Copy className="h-4 w-4 mr-2 text-gray-500" />
+                              )}
+                              {copiedGroupBuy === groupBuy.id ? "Copied!" : "Copy Message"}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+
                         <Badge className={getStatusColor(groupBuy.status)}>
                           {groupBuy.status.charAt(0).toUpperCase() + groupBuy.status.slice(1)}
                         </Badge>
