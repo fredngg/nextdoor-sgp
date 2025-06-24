@@ -26,6 +26,7 @@ interface GroupBuy {
   category: string
   organizer_id: string
   created_at: string
+  organizer_display_name?: string
 }
 
 interface GroupBuySectionProps {
@@ -48,6 +49,8 @@ export function GroupBuySection({ communitySlug }: GroupBuySectionProps) {
     try {
       setLoading(true)
 
+      console.log("🔄 Fetching group buys for community:", communitySlug)
+
       const { data, error } = await supabase
         .from("group_buys")
         .select("*")
@@ -62,9 +65,48 @@ export function GroupBuySection({ communitySlug }: GroupBuySectionProps) {
           description: "Failed to load group buys",
           variant: "destructive",
         })
-      } else {
-        setGroupBuys(data || [])
+        return
       }
+
+      console.log("✅ Group buys fetched:", data)
+
+      // Now fetch organizer display names for each group buy
+      const groupBuysWithOrganizers = await Promise.all(
+        (data || []).map(async (groupBuy) => {
+          try {
+            console.log("🔄 Fetching display name for organizer:", groupBuy.organizer_id)
+
+            const { data: profileData, error: profileError } = await supabase
+              .from("user_profiles")
+              .select("display_name")
+              .eq("user_id", groupBuy.organizer_id)
+              .single()
+
+            if (profileError) {
+              console.log("⚠️ No profile found for organizer:", groupBuy.organizer_id, profileError)
+              return {
+                ...groupBuy,
+                organizer_display_name: "Anonymous Organizer",
+              }
+            }
+
+            console.log("✅ Found display name:", profileData?.display_name)
+            return {
+              ...groupBuy,
+              organizer_display_name: profileData?.display_name || "Anonymous Organizer",
+            }
+          } catch (error) {
+            console.error("Error fetching organizer profile:", error)
+            return {
+              ...groupBuy,
+              organizer_display_name: "Anonymous Organizer",
+            }
+          }
+        }),
+      )
+
+      console.log("✅ Group buys with organizer names:", groupBuysWithOrganizers)
+      setGroupBuys(groupBuysWithOrganizers)
     } catch (error) {
       console.error("Error fetching group buys:", error)
     } finally {
@@ -207,7 +249,7 @@ export function GroupBuySection({ communitySlug }: GroupBuySectionProps) {
                         <div className="flex items-center gap-4 text-sm text-gray-500">
                           <span className="flex items-center gap-1">
                             <Users className="h-4 w-4" />
-                            Anonymous Organizer
+                            {groupBuy.organizer_display_name || "Anonymous Organizer"}
                           </span>
                           <span className="flex items-center gap-1">
                             <Clock className="h-4 w-4" />
