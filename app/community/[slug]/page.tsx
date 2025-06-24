@@ -14,6 +14,7 @@ import { MembersModal } from "./components/members-modal"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { CommunityFeatures } from "./components/community-features"
 
 interface Community {
   id: string
@@ -241,7 +242,7 @@ export default function CommunityPage() {
 
                       // Find user's vote if logged in
                       if (user) {
-                        const userVote = commentVotes.find((vote) => vote.user_id === user.id)
+                        const userVote = commentVotes.find((vote) => vote.user_id === comment.id)
                         userCommentVote = userVote?.vote_type || null
                       }
                     }
@@ -448,6 +449,9 @@ export default function CommunityPage() {
               </div>
             </div>
           </div>
+
+          {/* Community Features Section */}
+          <CommunityFeatures communitySlug={slug} />
 
           {/* Main Content */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

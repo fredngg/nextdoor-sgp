@@ -1,0 +1,309 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/lib/auth-context"
+import { useToast } from "@/components/ui/use-toast"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import { Plus, ShoppingCart, Clock, Users, MapPin } from "lucide-react"
+import { CreateGroupBuyModal } from "./create-group-buy-modal"
+import { GroupBuyDetailsModal } from "./group-buy-details-modal"
+
+interface GroupBuy {
+  id: string
+  title: string
+  description: string
+  target_quantity: number
+  current_quantity: number
+  price_individual: number
+  price_group: number
+  deadline: string
+  pickup_location: string
+  status: "pending" | "successful" | "completed" | "expired"
+  category: string
+  organizer_id: string
+  created_at: string
+}
+
+interface GroupBuySectionProps {
+  communitySlug: string
+}
+
+export function GroupBuySection({ communitySlug }: GroupBuySectionProps) {
+  const { user } = useAuth()
+  const { toast } = useToast()
+  const [groupBuys, setGroupBuys] = useState<GroupBuy[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [selectedGroupBuy, setSelectedGroupBuy] = useState<GroupBuy | null>(null)
+
+  useEffect(() => {
+    fetchGroupBuys()
+  }, [communitySlug])
+
+  const fetchGroupBuys = async () => {
+    try {
+      setLoading(true)
+
+      const { data, error } = await supabase
+        .from("group_buys")
+        .select("*")
+        .eq("community_slug", communitySlug)
+        .in("status", ["pending", "successful"])
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Error fetching group buys:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load group buys",
+          variant: "destructive",
+        })
+      } else {
+        setGroupBuys(data || [])
+      }
+    } catch (error) {
+      console.error("Error fetching group buys:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleJoinGroupBuy = async (groupBuyId: string) => {
+    if (!user) {
+      toast({
+        title: "Login Required",
+        description: "Please log in to join group buys",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const { error } = await supabase.from("group_buy_participants").insert({
+        group_buy_id: groupBuyId,
+        user_id: user.id,
+        quantity_requested: 1,
+      })
+
+      if (error) {
+        if (error.code === "23505") {
+          toast({
+            title: "Already Joined",
+            description: "You're already part of this group buy",
+          })
+        } else {
+          throw error
+        }
+      } else {
+        toast({
+          title: "Joined Successfully!",
+          description: "You've joined the group buy",
+        })
+        fetchGroupBuys() // Refresh the list
+      }
+    } catch (error) {
+      console.error("Error joining group buy:", error)
+      toast({
+        title: "Error",
+        description: "Failed to join group buy",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "bg-yellow-100 text-yellow-800"
+      case "successful":
+        return "bg-green-100 text-green-800"
+      case "completed":
+        return "bg-blue-100 text-blue-800"
+      case "expired":
+        return "bg-gray-100 text-gray-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
+  }
+
+  const formatDeadline = (deadline: string) => {
+    const date = new Date(deadline)
+    const now = new Date()
+    const diffTime = date.getTime() - now.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+    if (diffDays < 0) return "Expired"
+    if (diffDays === 0) return "Today"
+    if (diffDays === 1) return "1 day left"
+    return `${diffDays} days left`
+  }
+
+  const calculateProgress = (current: number, target: number) => {
+    return Math.min((current / target) * 100, 100)
+  }
+
+  const calculateSavings = (individual: number, group: number) => {
+    return individual - group
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            Group Buys
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
+            <p className="text-gray-500 mt-2">Loading group buys...</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5" />
+              Group Buys
+            </CardTitle>
+            <Button onClick={() => setShowCreateModal(true)} size="sm" className="bg-red-600 hover:bg-red-700">
+              <Plus className="h-4 w-4 mr-2" />
+              New Group Buy
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {groupBuys.length === 0 ? (
+            <div className="text-center py-8">
+              <ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Group Buys Yet</h3>
+              <p className="text-gray-500 mb-4">Be the first to start a group buy in your community!</p>
+              <Button onClick={() => setShowCreateModal(true)} className="bg-red-600 hover:bg-red-700">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Group Buy
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {groupBuys.map((groupBuy) => (
+                <Card key={groupBuy.id} className="border-l-4 border-l-red-500">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-lg text-gray-900 mb-1">{groupBuy.title}</h4>
+                        <p className="text-gray-600 text-sm mb-2 line-clamp-2">{groupBuy.description}</p>
+                        <div className="flex items-center gap-4 text-sm text-gray-500">
+                          <span className="flex items-center gap-1">
+                            <Users className="h-4 w-4" />
+                            Anonymous Organizer
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-4 w-4" />
+                            {formatDeadline(groupBuy.deadline)}
+                          </span>
+                        </div>
+                      </div>
+                      <Badge className={getStatusColor(groupBuy.status)}>
+                        {groupBuy.status.charAt(0).toUpperCase() + groupBuy.status.slice(1)}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-3">
+                      {/* Progress */}
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Progress</span>
+                          <span>
+                            {groupBuy.current_quantity}/{groupBuy.target_quantity} people
+                          </span>
+                        </div>
+                        <Progress
+                          value={calculateProgress(groupBuy.current_quantity, groupBuy.target_quantity)}
+                          className="h-2"
+                        />
+                      </div>
+
+                      {/* Pricing */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="text-sm">
+                            <span className="text-gray-500">Individual: </span>
+                            <span className="line-through text-gray-400">${groupBuy.price_individual}</span>
+                          </div>
+                          <div className="text-sm">
+                            <span className="text-gray-500">Group: </span>
+                            <span className="font-semibold text-green-600">${groupBuy.price_group}</span>
+                          </div>
+                          <div className="text-sm">
+                            <span className="text-green-600 font-medium">
+                              Save ${calculateSavings(groupBuy.price_individual, groupBuy.price_group)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Pickup Location */}
+                      <div className="flex items-center gap-1 text-sm text-gray-600">
+                        <MapPin className="h-4 w-4" />
+                        <span>{groupBuy.pickup_location}</span>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2 pt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedGroupBuy(groupBuy)}
+                          className="flex-1"
+                        >
+                          View Details
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleJoinGroupBuy(groupBuy.id)}
+                          className="flex-1 bg-red-600 hover:bg-red-700"
+                          disabled={groupBuy.status !== "pending"}
+                        >
+                          {groupBuy.status === "pending" ? "Join Group Buy" : "Closed"}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Modals */}
+      <CreateGroupBuyModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        communitySlug={communitySlug}
+        onGroupBuyCreated={fetchGroupBuys}
+      />
+
+      {selectedGroupBuy && (
+        <GroupBuyDetailsModal
+          isOpen={!!selectedGroupBuy}
+          onClose={() => setSelectedGroupBuy(null)}
+          groupBuy={selectedGroupBuy}
+          onJoin={() => handleJoinGroupBuy(selectedGroupBuy.id)}
+        />
+      )}
+    </>
+  )
+}

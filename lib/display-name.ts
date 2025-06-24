@@ -8,64 +8,97 @@ export interface UserProfile {
 }
 
 export async function getUserDisplayName(userId: string): Promise<string | null> {
-  try {
-    console.log("🔍 getUserDisplayName: Fetching for userId:", userId)
+  console.log("🔍 getUserDisplayName: STARTING for userId:", userId)
 
-    const { data, error } = await supabase.from("user_profiles").select("display_name").eq("user_id", userId).single()
+  try {
+    console.log("🔍 getUserDisplayName: About to query user_profiles table...")
+
+    // Add timeout wrapper
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        console.log("⏰ getUserDisplayName: TIMEOUT after 5 seconds")
+        reject(new Error("getUserDisplayName timeout"))
+      }, 5000)
+    })
+
+    const queryPromise = supabase.from("user_profiles").select("display_name").eq("user_id", userId).single()
+
+    console.log("🔍 getUserDisplayName: Starting Promise.race...")
+
+    const result = await Promise.race([queryPromise, timeoutPromise])
+    const { data, error } = result as any
+
+    console.log("✅ getUserDisplayName: Query completed")
+    console.log("- data:", data)
+    console.log("- error:", error)
 
     if (error && error.code !== "PGRST116") {
       console.error("❌ getUserDisplayName: Error fetching display name:", error)
       return null
     }
 
-    const result = data?.display_name || null
-    console.log("📝 getUserDisplayName: Result:", result)
-    return result
+    const displayName = data?.display_name || null
+    console.log("📝 getUserDisplayName: Final result:", displayName)
+    return displayName
   } catch (error) {
-    console.error("💥 getUserDisplayName: Exception:", error)
+    console.error("💥 getUserDisplayName: Exception caught:", error)
     return null
   }
 }
 
 export async function setUserDisplayName(userId: string, displayName: string): Promise<boolean> {
+  console.log("💾 setUserDisplayName: STARTING")
+  console.log("- userId:", userId)
+  console.log("- displayName:", displayName)
+
   try {
-    console.log("💾 setUserDisplayName: Starting save process")
-    console.log("- userId:", userId)
-    console.log("- displayName:", displayName)
+    // Add timeout wrapper
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        console.log("⏰ setUserDisplayName: TIMEOUT after 5 seconds")
+        reject(new Error("setUserDisplayName timeout"))
+      }, 5000)
+    })
 
     // First check if a profile already exists
-    const { data: existingProfile, error: fetchError } = await supabase
-      .from("user_profiles")
-      .select("id")
-      .eq("user_id", userId)
-      .single()
+    console.log("🔍 setUserDisplayName: Checking for existing profile...")
 
-    console.log("🔍 setUserDisplayName: Existing profile check:", existingProfile ? "Found" : "Not found")
-    if (fetchError && fetchError.code !== "PGRST116") {
-      console.error("❌ setUserDisplayName: Error checking existing profile:", fetchError)
-    }
+    const existingProfilePromise = supabase.from("user_profiles").select("id").eq("user_id", userId).single()
+
+    const existingResult = await Promise.race([existingProfilePromise, timeoutPromise])
+    const { data: existingProfile, error: fetchError } = existingResult as any
+
+    console.log("🔍 setUserDisplayName: Existing profile check result:")
+    console.log("- existingProfile:", existingProfile)
+    console.log("- fetchError:", fetchError)
 
     let result
 
     if (existingProfile) {
       // Update existing profile
       console.log("🔄 setUserDisplayName: Updating existing profile")
-      result = await supabase.from("user_profiles").update({ display_name: displayName }).eq("user_id", userId)
+      const updatePromise = supabase.from("user_profiles").update({ display_name: displayName }).eq("user_id", userId)
+
+      result = await Promise.race([updatePromise, timeoutPromise])
     } else {
       // Insert new profile
       console.log("➕ setUserDisplayName: Creating new profile")
-      result = await supabase.from("user_profiles").insert({ user_id: userId, display_name: displayName })
+      const insertPromise = supabase.from("user_profiles").insert({ user_id: userId, display_name: displayName })
+
+      result = await Promise.race([insertPromise, timeoutPromise])
     }
 
-    if (result.error) {
-      console.error("❌ setUserDisplayName: Database operation failed:", result.error)
+    const { error } = result as any
+
+    if (error) {
+      console.error("❌ setUserDisplayName: Database operation failed:", error)
       return false
     }
 
     console.log("✅ setUserDisplayName: Successfully saved display name")
     return true
   } catch (error) {
-    console.error("💥 setUserDisplayName: Exception:", error)
+    console.error("💥 setUserDisplayName: Exception caught:", error)
     return false
   }
 }
