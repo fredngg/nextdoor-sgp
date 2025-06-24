@@ -8,9 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Plus, ShoppingCart, Clock, Users, MapPin, Send } from "lucide-react"
+import { Plus, ShoppingCart, Clock, Users, MapPin, Send, ExternalLink } from "lucide-react"
 import { CreateGroupBuyModal } from "./create-group-buy-modal"
-import { GroupBuyDetailsModal } from "./group-buy-details-modal"
+import Link from "next/link"
 
 interface GroupBuy {
   id: string
@@ -31,15 +31,15 @@ interface GroupBuy {
 
 interface GroupBuySectionProps {
   communitySlug: string
+  highlightedGroupBuy?: string | null
 }
 
-export function GroupBuySection({ communitySlug }: GroupBuySectionProps) {
+export function GroupBuySection({ communitySlug, highlightedGroupBuy }: GroupBuySectionProps) {
   const { user } = useAuth()
   const { toast } = useToast()
   const [groupBuys, setGroupBuys] = useState<GroupBuy[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [selectedGroupBuy, setSelectedGroupBuy] = useState<GroupBuy | null>(null)
 
   useEffect(() => {
     fetchGroupBuys()
@@ -116,7 +116,7 @@ export function GroupBuySection({ communitySlug }: GroupBuySectionProps) {
 
   const generateTelegramLink = (groupBuy: GroupBuy) => {
     const baseUrl = window.location.origin
-    const groupBuyUrl = `${baseUrl}/community/${communitySlug}?groupbuy=${groupBuy.id}`
+    const groupBuyUrl = `${baseUrl}/community/${communitySlug}/groupbuy/${groupBuy.id}`
 
     const savings = groupBuy.price_individual - groupBuy.price_group
     const savingsPercent = Math.round((savings / groupBuy.price_individual) * 100)
@@ -163,49 +163,6 @@ Join now: ${groupBuyUrl}
       title: "Opening Telegram",
       description: "Telegram should open with the group buy message ready to share!",
     })
-  }
-
-  const handleJoinGroupBuy = async (groupBuyId: string) => {
-    if (!user) {
-      toast({
-        title: "Login Required",
-        description: "Please log in to join group buys",
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      const { error } = await supabase.from("group_buy_participants").insert({
-        group_buy_id: groupBuyId,
-        user_id: user.id,
-        quantity_requested: 1,
-      })
-
-      if (error) {
-        if (error.code === "23505") {
-          toast({
-            title: "Already Joined",
-            description: "You're already part of this group buy",
-          })
-        } else {
-          throw error
-        }
-      } else {
-        toast({
-          title: "Joined Successfully!",
-          description: "You've joined the group buy",
-        })
-        fetchGroupBuys() // Refresh the list
-      }
-    } catch (error) {
-      console.error("Error joining group buy:", error)
-      toast({
-        title: "Error",
-        description: "Failed to join group buy",
-        variant: "destructive",
-      })
-    }
   }
 
   const getStatusColor = (status: string) => {
@@ -291,7 +248,12 @@ Join now: ${groupBuyUrl}
           ) : (
             <div className="space-y-4">
               {groupBuys.map((groupBuy) => (
-                <Card key={groupBuy.id} className="border-l-4 border-l-red-500">
+                <Card
+                  key={groupBuy.id}
+                  className={`border-l-4 border-l-red-500 ${
+                    highlightedGroupBuy === groupBuy.id ? "ring-2 ring-red-200 bg-red-50" : ""
+                  }`}
+                >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
@@ -365,21 +327,21 @@ Join now: ${groupBuyUrl}
 
                       {/* Actions */}
                       <div className="flex gap-2 pt-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelectedGroupBuy(groupBuy)}
-                          className="flex-1"
-                        >
-                          View Details
+                        <Button variant="outline" size="sm" asChild className="flex-1">
+                          <Link href={`/community/${communitySlug}/groupbuy/${groupBuy.id}`}>
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            View Details
+                          </Link>
                         </Button>
                         <Button
                           size="sm"
-                          onClick={() => handleJoinGroupBuy(groupBuy.id)}
+                          asChild
                           className="flex-1 bg-red-600 hover:bg-red-700"
                           disabled={groupBuy.status !== "pending"}
                         >
-                          {groupBuy.status === "pending" ? "Join Group Buy" : "Closed"}
+                          <Link href={`/community/${communitySlug}/groupbuy/${groupBuy.id}`}>
+                            {groupBuy.status === "pending" ? "Join Group Buy" : "View Group Buy"}
+                          </Link>
                         </Button>
                       </div>
                     </div>
@@ -398,15 +360,6 @@ Join now: ${groupBuyUrl}
         communitySlug={communitySlug}
         onGroupBuyCreated={fetchGroupBuys}
       />
-
-      {selectedGroupBuy && (
-        <GroupBuyDetailsModal
-          isOpen={!!selectedGroupBuy}
-          onClose={() => setSelectedGroupBuy(null)}
-          groupBuy={selectedGroupBuy}
-          onJoin={() => handleJoinGroupBuy(selectedGroupBuy.id)}
-        />
-      )}
     </>
   )
 }
