@@ -36,6 +36,19 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
     category: "",
   })
 
+  // Categories that match the database constraint exactly
+  const categories = ["groceries", "electronics", "household", "clothing", "books", "general"]
+
+  // Display names for categories
+  const categoryDisplayNames = {
+    groceries: "Groceries",
+    electronics: "Electronics",
+    household: "Household Items",
+    clothing: "Clothing & Fashion",
+    books: "Books & Media",
+    general: "General Items",
+  }
+
   // Debug logging for component state
   console.log("CreateGroupBuyModal rendered with:", {
     isOpen,
@@ -45,17 +58,6 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
     deadline,
     formData,
   })
-
-  const categories = [
-    "Groceries",
-    "Electronics",
-    "Household Items",
-    "Personal Care",
-    "Food & Beverages",
-    "Cleaning Supplies",
-    "Office Supplies",
-    "Other",
-  ]
 
   const handleInputChange = (field: string, value: string) => {
     console.log(`Input changed: ${field} = ${value}`)
@@ -135,7 +137,7 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
         price_group: Number.parseFloat(formData.price_group),
         deadline: deadline!.toISOString(),
         pickup_location: formData.pickup_location.trim(),
-        category: formData.category,
+        category: formData.category, // Now matches database constraint exactly
         status: "pending",
       }
 
@@ -197,14 +199,6 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
     return Math.round(((individual - group) / individual) * 100)
   }
 
-  // Debug button click
-  const handleButtonClick = (e: React.MouseEvent) => {
-    console.log("🖱️ Create Group Buy button clicked!")
-    console.log("Button event:", e)
-    console.log("Current loading state:", loading)
-    // The form submit will be triggered automatically since it's type="submit"
-  }
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -247,7 +241,7 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
                 <SelectContent>
                   {categories.map((category) => (
                     <SelectItem key={category} value={category}>
-                      {category}
+                      {categoryDisplayNames[category]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -351,7 +345,7 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} onClick={handleButtonClick}>
+            <Button type="submit" disabled={loading}>
               {loading ? "Creating..." : "Create Group Buy"}
             </Button>
           </div>
