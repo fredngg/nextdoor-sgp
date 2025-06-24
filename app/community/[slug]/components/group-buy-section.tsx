@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Plus, ShoppingCart, Clock, Users, MapPin } from "lucide-react"
+import { Plus, ShoppingCart, Clock, Users, MapPin, Send } from "lucide-react"
 import { CreateGroupBuyModal } from "./create-group-buy-modal"
 import { GroupBuyDetailsModal } from "./group-buy-details-modal"
 
@@ -112,6 +112,57 @@ export function GroupBuySection({ communitySlug }: GroupBuySectionProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const generateTelegramLink = (groupBuy: GroupBuy) => {
+    const baseUrl = window.location.origin
+    const groupBuyUrl = `${baseUrl}/community/${communitySlug}?groupbuy=${groupBuy.id}`
+
+    const savings = groupBuy.price_individual - groupBuy.price_group
+    const savingsPercent = Math.round((savings / groupBuy.price_individual) * 100)
+
+    const categoryDisplayNames = {
+      groceries: "Groceries",
+      electronics: "Electronics",
+      household: "Household Items",
+      clothing: "Clothing & Fashion",
+      books: "Books & Media",
+      general: "General Items",
+    }
+
+    const message = `🛒 *Group Buy Alert!*
+
+📦 *${groupBuy.title}*
+${groupBuy.description}
+
+💰 *Pricing:*
+• Individual: S$${groupBuy.price_individual}
+• Group Price: S$${groupBuy.price_group}
+• *Save S$${savings.toFixed(2)} (${savingsPercent}% off!)*
+
+👥 *Target:* ${groupBuy.target_quantity} people
+📍 *Pickup:* ${groupBuy.pickup_location}
+⏰ *Deadline:* ${new Date(groupBuy.deadline).toLocaleDateString()}
+
+Join now: ${groupBuyUrl}
+
+#GroupBuy #${categoryDisplayNames[groupBuy.category]?.replace(/\s+/g, "") || "General"}`
+
+    const encodedMessage = encodeURIComponent(message)
+    return `tg://msg?text=${encodedMessage}`
+  }
+
+  const handleTelegramShare = (groupBuy: GroupBuy) => {
+    const telegramLink = generateTelegramLink(groupBuy)
+    console.log("📱 Opening Telegram with link:", telegramLink)
+
+    // Try to open Telegram app
+    window.location.href = telegramLink
+
+    toast({
+      title: "Opening Telegram",
+      description: "Telegram should open with the group buy message ready to share!",
+    })
   }
 
   const handleJoinGroupBuy = async (groupBuyId: string) => {
@@ -257,9 +308,19 @@ export function GroupBuySection({ communitySlug }: GroupBuySectionProps) {
                           </span>
                         </div>
                       </div>
-                      <Badge className={getStatusColor(groupBuy.status)}>
-                        {groupBuy.status.charAt(0).toUpperCase() + groupBuy.status.slice(1)}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleTelegramShare(groupBuy)}
+                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                        >
+                          <Send className="h-4 w-4" />
+                        </Button>
+                        <Badge className={getStatusColor(groupBuy.status)}>
+                          {groupBuy.status.charAt(0).toUpperCase() + groupBuy.status.slice(1)}
+                        </Badge>
+                      </div>
                     </div>
 
                     <div className="space-y-3">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Navigation } from "../../components/navigation"
 import { PostFeed } from "./components/post-feed"
@@ -53,7 +53,9 @@ interface Comment {
 
 export default function CommunityPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const slug = params.slug as string
+  const groupBuyId = searchParams.get("groupbuy")
   const { user } = useAuth()
 
   const [community, setCommunity] = useState<Community | null>(null)
@@ -63,12 +65,27 @@ export default function CommunityPage() {
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("All")
   const [showMembersModal, setShowMembersModal] = useState(false)
+  const [highlightedGroupBuy, setHighlightedGroupBuy] = useState<string | null>(null)
 
   useEffect(() => {
     if (slug) {
       fetchCommunityData()
     }
   }, [slug, user])
+
+  useEffect(() => {
+    // If there's a groupbuy parameter, highlight it and scroll to group buys section
+    if (groupBuyId) {
+      setHighlightedGroupBuy(groupBuyId)
+      // Scroll to group buys section after a short delay to ensure it's rendered
+      setTimeout(() => {
+        const groupBuySection = document.getElementById("group-buys-section")
+        if (groupBuySection) {
+          groupBuySection.scrollIntoView({ behavior: "smooth" })
+        }
+      }, 1000)
+    }
+  }, [groupBuyId])
 
   async function fetchCommunityData() {
     try {
@@ -451,7 +468,9 @@ export default function CommunityPage() {
           </div>
 
           {/* Community Features Section */}
-          <CommunityFeatures communitySlug={slug} />
+          <div id="group-buys-section">
+            <CommunityFeatures communitySlug={slug} highlightedGroupBuy={highlightedGroupBuy} />
+          </div>
 
           {/* Main Content */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
