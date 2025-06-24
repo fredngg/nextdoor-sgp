@@ -46,9 +46,7 @@ interface GroupBuy {
   organizer_id: string
   created_at: string
   community_slug: string
-  organizer?: {
-    display_name: string
-  }
+  organizer_display_name?: string
 }
 
 interface Community {
@@ -100,6 +98,7 @@ export default function GroupBuyPage() {
 
   useEffect(() => {
     if (communitySlug && groupBuyId) {
+      console.log("🔄 Loading group buy page:", { communitySlug, groupBuyId })
       fetchData()
     }
   }, [communitySlug, groupBuyId, user])
@@ -109,40 +108,60 @@ export default function GroupBuyPage() {
       setLoading(true)
       setError(null)
 
-      // Fetch group buy details
+      console.log("🔄 Fetching group buy details...")
+
+      // Fetch group buy details with organizer info
       const { data: groupBuyData, error: groupBuyError } = await supabase
         .from("group_buys")
-        .select(`
-          *,
-          user_profiles!group_buys_organizer_id_fkey(display_name)
-        `)
+        .select("*")
         .eq("id", groupBuyId)
         .eq("community_slug", communitySlug)
         .single()
 
+      console.log("📊 Group buy query result:", { groupBuyData, groupBuyError })
+
       if (groupBuyError) {
+        console.error("❌ Group buy error:", groupBuyError)
         if (groupBuyError.code === "PGRST116") {
           setError("Group buy not found")
         } else {
-          throw groupBuyError
+          setError(`Database error: ${groupBuyError.message}`)
         }
         return
       }
 
+      if (!groupBuyData) {
+        setError("Group buy not found")
+        return
+      }
+
+      // Fetch organizer display name separately
+      console.log("🔄 Fetching organizer display name for:", groupBuyData.organizer_id)
+      const { data: organizerData, error: organizerError } = await supabase
+        .from("user_profiles")
+        .select("display_name")
+        .eq("user_id", groupBuyData.organizer_id)
+        .single()
+
+      console.log("📊 Organizer query result:", { organizerData, organizerError })
+
       setGroupBuy({
         ...groupBuyData,
-        organizer: groupBuyData.user_profiles,
+        organizer_display_name: organizerData?.display_name || "Anonymous Organizer",
       })
 
       // Fetch community details
+      console.log("🔄 Fetching community details...")
       const { data: communityData, error: communityError } = await supabase
         .from("communities")
         .select("*")
         .eq("slug", communitySlug)
         .single()
 
+      console.log("📊 Community query result:", { communityData, communityError })
+
       if (communityError) {
-        console.error("Error fetching community:", communityError)
+        console.error("⚠️ Community error:", communityError)
       } else {
         setCommunity(communityData)
       }
@@ -156,7 +175,7 @@ export default function GroupBuyPage() {
       // Check if current user is a participant
       await checkParticipation()
     } catch (err) {
-      console.error("Error fetching data:", err)
+      console.error("❌ Error fetching data:", err)
       setError(err instanceof Error ? err.message : "Failed to load group buy")
     } finally {
       setLoading(false)
@@ -165,6 +184,7 @@ export default function GroupBuyPage() {
 
   const fetchParticipants = async () => {
     try {
+      console.log("🔄 Fetching participants...")
       const { data, error } = await supabase
         .from("group_buy_participants")
         .select(`
@@ -174,15 +194,22 @@ export default function GroupBuyPage() {
         .eq("group_buy_id", groupBuyId)
         .order("joined_at", { ascending: true })
 
-      if (error) throw error
-      setParticipants(data || [])
+      console.log("📊 Participants query result:", { data, error })
+
+      if (error) {
+        console.error("⚠️ Participants error:", error)
+        // Don't throw error, just log it
+      } else {
+        setParticipants(data || [])
+      }
     } catch (error) {
-      console.error("Error fetching participants:", error)
+      console.error("❌ Error fetching participants:", error)
     }
   }
 
   const fetchComments = async () => {
     try {
+      console.log("🔄 Fetching comments...")
       const { data, error } = await supabase
         .from("group_buy_comments")
         .select(`
@@ -192,10 +219,16 @@ export default function GroupBuyPage() {
         .eq("group_buy_id", groupBuyId)
         .order("created_at", { ascending: true })
 
-      if (error) throw error
-      setComments(data || [])
+      console.log("📊 Comments query result:", { data, error })
+
+      if (error) {
+        console.error("⚠️ Comments error:", error)
+        // Don't throw error, just log it
+      } else {
+        setComments(data || [])
+      }
     } catch (error) {
-      console.error("Error fetching comments:", error)
+      console.error("❌ Error fetching comments:", error)
     }
   }
 
@@ -203,6 +236,7 @@ export default function GroupBuyPage() {
     if (!user) return
 
     try {
+      console.log("🔄 Checking participation for user:", user.id)
       const { data, error } = await supabase
         .from("group_buy_participants")
         .select("id")
@@ -210,8 +244,11 @@ export default function GroupBuyPage() {
         .eq("user_id", user.id)
         .single()
 
+      console.log("📊 Participation check result:", { data, error })
+
       setIsParticipant(!!data && !error)
     } catch (error) {
+      console.error("⚠️ Error checking participation:", error)
       setIsParticipant(false)
     }
   }
@@ -230,6 +267,7 @@ export default function GroupBuyPage() {
 
     setActionLoading(true)
     try {
+      console.log("🔄 Joining group buy:", groupBuy.id)
       const { error } = await supabase.from("group_buy_participants").insert({
         group_buy_id: groupBuy.id,
         user_id: user.id,
@@ -237,6 +275,7 @@ export default function GroupBuyPage() {
       })
 
       if (error) {
+        console.error("❌ Join error:", error)
         if (error.code === "23505") {
           toast({
             title: "Already Joined",
@@ -254,7 +293,7 @@ export default function GroupBuyPage() {
         await checkParticipation()
       }
     } catch (error) {
-      console.error("Error joining group buy:", error)
+      console.error("❌ Error joining group buy:", error)
       toast({
         title: "Error",
         description: "Failed to join group buy",
@@ -270,13 +309,17 @@ export default function GroupBuyPage() {
 
     setActionLoading(true)
     try {
+      console.log("🔄 Adding comment...")
       const { error } = await supabase.from("group_buy_comments").insert({
         group_buy_id: groupBuy.id,
         user_id: user.id,
         comment: newComment.trim(),
       })
 
-      if (error) throw error
+      if (error) {
+        console.error("❌ Comment error:", error)
+        throw error
+      }
 
       setNewComment("")
       await fetchComments()
@@ -285,7 +328,7 @@ export default function GroupBuyPage() {
         description: "Your comment has been posted",
       })
     } catch (error) {
-      console.error("Error adding comment:", error)
+      console.error("❌ Error adding comment:", error)
       toast({
         title: "Error",
         description: "Failed to add comment",
@@ -415,6 +458,9 @@ Join now: ${groupBuyUrl}
                   <p className="text-sm text-gray-600">
                     {error || "The group buy you're looking for doesn't exist or has been removed."}
                   </p>
+                  <div className="text-xs text-gray-500 mt-2">
+                    Debug info: Community: {communitySlug}, Group Buy ID: {groupBuyId}
+                  </div>
                   <div className="flex gap-2 mt-4">
                     <Button onClick={() => router.back()} variant="outline" size="sm">
                       Go Back
@@ -510,7 +556,7 @@ Join now: ${groupBuyUrl}
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <User className="h-4 w-4 text-gray-500" />
-                    <span>Organized by {groupBuy.organizer?.display_name || "Unknown"}</span>
+                    <span>Organized by {groupBuy.organizer_display_name || "Unknown"}</span>
                   </div>
                 </div>
               </div>
