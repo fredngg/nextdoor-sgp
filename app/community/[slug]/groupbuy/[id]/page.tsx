@@ -26,6 +26,7 @@ import {
   Share2,
   Copy,
   Check,
+  Crown,
 } from "lucide-react"
 import { format } from "date-fns"
 import { supabase } from "@/lib/supabase"
@@ -97,6 +98,7 @@ export default function GroupBuyPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isParticipant, setIsParticipant] = useState(false)
+  const [isOrganizer, setIsOrganizer] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
 
@@ -138,6 +140,11 @@ export default function GroupBuyPage() {
         setError("Group buy not found")
         return
       }
+
+      // Check if current user is the organizer
+      const userIsOrganizer = user?.id === groupBuyData.organizer_id
+      setIsOrganizer(userIsOrganizer)
+      console.log("👑 User is organizer:", userIsOrganizer)
 
       // Fetch organizer display name separately
       console.log("🔄 Fetching organizer display name for:", groupBuyData.organizer_id)
@@ -268,6 +275,14 @@ export default function GroupBuyPage() {
     }
 
     if (!groupBuy) return
+
+    if (isOrganizer) {
+      toast({
+        title: "Already Participating",
+        description: "You're the organizer of this group buy and are automatically included!",
+      })
+      return
+    }
 
     setActionLoading(true)
     try {
@@ -551,6 +566,12 @@ Join now: ${groupBuyUrl}`
                       {groupBuy.status.charAt(0).toUpperCase() + groupBuy.status.slice(1)}
                     </Badge>
                     <span>Category: {groupBuy.category}</span>
+                    {isOrganizer && (
+                      <Badge variant="outline" className="text-purple-600 border-purple-200">
+                        <Crown className="h-3 w-3 mr-1" />
+                        Your Group Buy
+                      </Badge>
+                    )}
                   </div>
                 </div>
 
@@ -638,7 +659,7 @@ Join now: ${groupBuyUrl}`
               </div>
 
               {/* Join Button */}
-              {user && !isParticipant && groupBuy.status === "pending" && (
+              {user && !isOrganizer && !isParticipant && groupBuy.status === "pending" && (
                 <Button
                   onClick={handleJoinGroupBuy}
                   className="w-full bg-red-600 hover:bg-red-700"
@@ -658,7 +679,16 @@ Join now: ${groupBuyUrl}`
                 </div>
               )}
 
-              {isParticipant && (
+              {isOrganizer && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                  <div className="text-sm text-purple-800 font-medium flex items-center gap-2">
+                    <Crown className="h-4 w-4" />
+                    You're the organizer of this group buy and are automatically included!
+                  </div>
+                </div>
+              )}
+
+              {isParticipant && !isOrganizer && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <div className="text-sm text-blue-800 font-medium">✅ You're part of this group buy!</div>
                 </div>
@@ -683,7 +713,12 @@ Join now: ${groupBuyUrl}`
                         {participant.user_profiles.display_name.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span>{participant.user_profiles.display_name}</span>
+                    <span className="flex items-center gap-1">
+                      {participant.user_profiles.display_name}
+                      {participant.user_id === groupBuy.organizer_id && (
+                        <Crown className="h-3 w-3 text-purple-500" title="Organizer" />
+                      )}
+                    </span>
                   </div>
                 ))}
                 {participants.length === 0 && (
@@ -742,7 +777,12 @@ Join now: ${groupBuyUrl}`
                     </Avatar>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium">{comment.user_profiles.display_name}</span>
+                        <span className="text-sm font-medium flex items-center gap-1">
+                          {comment.user_profiles.display_name}
+                          {comment.user_id === groupBuy.organizer_id && (
+                            <Crown className="h-3 w-3 text-purple-500" title="Organizer" />
+                          )}
+                        </span>
                         <span className="text-xs text-gray-500">
                           {format(new Date(comment.created_at), "MMM d, h:mm a")}
                         </span>
