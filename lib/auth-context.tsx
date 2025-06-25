@@ -35,21 +35,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log("🔄 AuthContext: About to call getUserDisplayName...")
 
-      // REMOVED timeout - let the database query complete naturally
-      const name = await getUserDisplayName(userId)
+      // Add a reasonable timeout but longer than before
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          console.log("⏰ AuthContext: fetchDisplayName TIMEOUT after 30 seconds")
+          reject(new Error("Display name fetch timeout"))
+        }, 30000) // 30 seconds - much longer but not infinite
+      })
+
+      const displayNamePromise = getUserDisplayName(userId)
+      console.log("🔄 AuthContext: Created promises, starting race...")
+
+      const name = await Promise.race([displayNamePromise, timeoutPromise])
       console.log("✅ AuthContext: fetchDisplayName SUCCESS, result:", name)
 
-      setDisplayName(name)
+      setDisplayName(name as string | null)
       const needsName = !name
       setNeedsDisplayName(needsName)
 
       console.log("🎯 AuthContext: needsDisplayName set to:", needsName)
     } catch (error) {
       console.error("💥 AuthContext: fetchDisplayName ERROR:", error)
-      // On error, assume user needs to set display name
-      setDisplayName(null)
-      setNeedsDisplayName(true)
-      console.log("🔧 AuthContext: Set fallback state after error")
+      // On timeout or error, check if we already have a display name in state
+      if (!displayName) {
+        console.log("🔧 AuthContext: No existing display name, setting needsDisplayName=true")
+        setDisplayName(null)
+        setNeedsDisplayName(true)
+      } else {
+        console.log("🔧 AuthContext: Keeping existing display name, not showing modal")
+      }
     }
 
     console.log("🏁 AuthContext: fetchDisplayName COMPLETED")
@@ -102,6 +116,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("🔔 AuthContext: onAuthStateChange TRIGGERED:", event, session?.user?.id || "No user")
+
+      // Skip fetching display name on auth state changes to prevent loops
+      if (event === "TOKEN_REFRESHED") {
+        console.log("🔄 AuthContext: Token refresh - skipping display name fetch")
+        return
+      }
+
       console.log("🔔 AuthContext: Session details:", {
         hasSession: !!session,
         hasUser: !!session?.user,
@@ -112,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
 
-      if (session?.user) {
+      if (session?.user && event !== "TOKEN_REFRESHED") {
         console.log("🔄 AuthContext: User found in auth change, calling fetchDisplayName...")
         await fetchDisplayName(session.user.id)
         console.log("✅ AuthContext: fetchDisplayName completed in onAuthStateChange")
