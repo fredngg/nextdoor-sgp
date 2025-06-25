@@ -27,20 +27,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [needsDisplayName, setNeedsDisplayName] = useState(false)
+  const [displayNameFetched, setDisplayNameFetched] = useState(false) // Track if we've already fetched
   const router = useRouter()
 
-  const fetchDisplayName = async (userId: string) => {
+  const fetchDisplayName = async (userId: string, force = false) => {
+    // Skip if we already have a display name and this isn't a forced fetch
+    if (displayName && displayNameFetched && !force) {
+      console.log("🔄 AuthContext: Skipping display name fetch - already have:", displayName)
+      return
+    }
+
     console.log("🔄 AuthContext: STARTING fetchDisplayName for user:", userId)
 
     try {
       console.log("🔄 AuthContext: About to call getUserDisplayName...")
 
-      // Add a reasonable timeout but longer than before
+      // Reasonable timeout but not too aggressive
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => {
-          console.log("⏰ AuthContext: fetchDisplayName TIMEOUT after 30 seconds")
+          console.log("⏰ AuthContext: fetchDisplayName TIMEOUT after 25 seconds")
           reject(new Error("Display name fetch timeout"))
-        }, 30000) // 30 seconds - much longer but not infinite
+        }, 25000)
       })
 
       const displayNamePromise = getUserDisplayName(userId)
@@ -50,19 +57,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("✅ AuthContext: fetchDisplayName SUCCESS, result:", name)
 
       setDisplayName(name as string | null)
+      setDisplayNameFetched(true) // Mark as fetched
       const needsName = !name
       setNeedsDisplayName(needsName)
 
       console.log("🎯 AuthContext: needsDisplayName set to:", needsName)
     } catch (error) {
       console.error("💥 AuthContext: fetchDisplayName ERROR:", error)
-      // On timeout or error, check if we already have a display name in state
+
+      // Only set needsDisplayName=true if we don't already have a display name
       if (!displayName) {
         console.log("🔧 AuthContext: No existing display name, setting needsDisplayName=true")
         setDisplayName(null)
         setNeedsDisplayName(true)
       } else {
-        console.log("🔧 AuthContext: Keeping existing display name, not showing modal")
+        console.log("🔧 AuthContext: Keeping existing display name:", displayName)
+        // Keep the existing display name and don't show modal
       }
     }
 
@@ -90,7 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (session?.user) {
           console.log("🔄 AuthContext: User found, calling fetchDisplayName...")
-          await fetchDisplayName(session.user.id)
+          await fetchDisplayName(session.user.id, true) // Force initial fetch
           console.log("✅ AuthContext: fetchDisplayName completed in getInitialSession")
         } else {
           console.log("ℹ️ AuthContext: No user in initial session")
@@ -117,9 +127,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("🔔 AuthContext: onAuthStateChange TRIGGERED:", event, session?.user?.id || "No user")
 
-      // Skip fetching display name on auth state changes to prevent loops
-      if (event === "TOKEN_REFRESHED") {
-        console.log("🔄 AuthContext: Token refresh - skipping display name fetch")
+      // Skip certain events that don't require display name refetch
+      if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
+        console.log("🔄 AuthContext: Skipping display name fetch for event:", event)
+        setSession(session)
+        setUser(session?.user ?? null)
+        setIsLoading(false)
         return
       }
 
@@ -133,14 +146,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
 
-      if (session?.user && event !== "TOKEN_REFRESHED") {
+      if (session?.user) {
         console.log("🔄 AuthContext: User found in auth change, calling fetchDisplayName...")
-        await fetchDisplayName(session.user.id)
+        await fetchDisplayName(session.user.id) // Don't force - will skip if already have display name
         console.log("✅ AuthContext: fetchDisplayName completed in onAuthStateChange")
       } else {
         console.log("ℹ️ AuthContext: No user in auth change, clearing display name")
         setDisplayName(null)
         setNeedsDisplayName(false)
+        setDisplayNameFetched(false)
       }
 
       console.log("🏁 AuthContext: Setting isLoading to false after auth change")
@@ -153,7 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("🧹 AuthContext: Cleaning up subscription")
       subscription.unsubscribe()
     }
-  }, [])
+  }, [displayName, displayNameFetched]) // Add dependencies
 
   const signIn = async (email: string) => {
     console.log("🔄 AuthContext: signIn called with email:", email)
@@ -180,6 +194,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await supabase.auth.signOut()
       console.log("✅ AuthContext: signOut completed")
+      // Reset display name state on sign out
+      setDisplayName(null)
+      setNeedsDisplayName(false)
+      setDisplayNameFetched(false)
       router.push("/")
     } catch (error) {
       console.error("💥 AuthContext: signOut ERROR:", error)
@@ -190,6 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log("🎯 AuthContext: updateDisplayName called with:", name)
     setDisplayName(name)
     setNeedsDisplayName(false)
+    setDisplayNameFetched(true) // Mark as fetched since we just set it
     console.log("✅ AuthContext: Display name updated, needsDisplayName set to false")
   }
 
@@ -210,6 +229,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   console.log("- isLoading:", isLoading)
   console.log("- displayName:", displayName)
   console.log("- needsDisplayName:", needsDisplayName)
+  console.log("- displayNameFetched:", displayNameFetched)
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
