@@ -1,74 +1,107 @@
-"use client"
-
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { ShoppingCart, Plus } from "lucide-react"
-import { useState } from "react"
-import { GroupBuySection } from "./group-buy-section"
+import { Card, CardContent } from "@/components/ui/card"
+import { ChevronRight, ShoppingCart, Users, MessageSquare, Calendar, MapPin, Megaphone } from "lucide-react"
+import Link from "next/link"
 
 interface CommunityFeaturesProps {
   communitySlug: string
 }
 
-export function CommunityFeatures({ communitySlug }: CommunityFeaturesProps) {
-  const [activeFeature, setActiveFeature] = useState<string | null>(null)
-
-  const handleFeatureClick = (feature: string) => {
-    setActiveFeature(activeFeature === feature ? null : feature)
-  }
-
+const CommunityFeatures = ({ communitySlug }: CommunityFeaturesProps) => {
   return (
-    <div className="space-y-6">
-      {/* Community Features Header */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl flex items-center gap-2">🏘️ Community Features</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Group Buy Feature */}
-            <Button
-              variant={activeFeature === "group-buy" ? "default" : "outline"}
-              className="h-auto p-4 flex flex-col items-center gap-2 bg-white hover:bg-gray-50 border-2"
-              onClick={() => handleFeatureClick("group-buy")}
-            >
-              <ShoppingCart className="h-8 w-8 text-red-600" />
-              <div className="text-center">
-                <div className="font-semibold text-gray-900">Group Buy</div>
-                <div className="text-sm text-gray-600">Save together on bulk purchases</div>
-              </div>
-            </Button>
-
-            {/* Placeholder for future features */}
-            <Button
-              variant="outline"
-              className="h-auto p-4 flex flex-col items-center gap-2 bg-gray-50 border-2 border-dashed cursor-not-allowed opacity-50"
-              disabled
-            >
-              <Plus className="h-8 w-8 text-gray-400" />
-              <div className="text-center">
-                <div className="font-semibold text-gray-500">More Features</div>
-                <div className="text-sm text-gray-400">Coming Soon</div>
-              </div>
-            </Button>
-
-            <Button
-              variant="outline"
-              className="h-auto p-4 flex flex-col items-center gap-2 bg-gray-50 border-2 border-dashed cursor-not-allowed opacity-50"
-              disabled
-            >
-              <Plus className="h-8 w-8 text-gray-400" />
-              <div className="text-center">
-                <div className="font-semibold text-gray-500">More Features</div>
-                <div className="text-sm text-gray-400">Coming Soon</div>
-              </div>
-            </Button>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <Card className="hover:shadow-md transition-shadow cursor-pointer">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-100 rounded-lg">
+              <Users className="h-6 w-6 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg mb-1">Neighbors</h3>
+              <p className="text-gray-600 text-sm">Connect with people who live nearby</p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-gray-400" />
           </div>
         </CardContent>
       </Card>
 
-      {/* Active Feature Content */}
-      {activeFeature === "group-buy" && <GroupBuySection communitySlug={communitySlug} />}
+      <Card className="hover:shadow-md transition-shadow cursor-pointer">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-green-100 rounded-lg">
+              <MessageSquare className="h-6 w-6 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg mb-1">Forums</h3>
+              <p className="text-gray-600 text-sm">Discuss local topics and share information</p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-gray-400" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="hover:shadow-md transition-shadow cursor-pointer">
+        <Link href={`/community/${communitySlug}/groupbuys`}>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-red-100 rounded-lg">
+                <ShoppingCart className="h-6 w-6 text-red-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-lg mb-1">Group Buys</h3>
+                <p className="text-gray-600 text-sm">Save money by buying together with your neighbors</p>
+              </div>
+              <ChevronRight className="h-5 w-5 text-gray-400" />
+            </div>
+          </CardContent>
+        </Link>
+      </Card>
+
+      <Card className="hover:shadow-md transition-shadow cursor-pointer">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-yellow-100 rounded-lg">
+              <Calendar className="h-6 w-6 text-yellow-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg mb-1">Events</h3>
+              <p className="text-gray-600 text-sm">Find local events and activities</p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-gray-400" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="hover:shadow-md transition-shadow cursor-pointer">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-indigo-100 rounded-lg">
+              <MapPin className="h-6 w-6 text-indigo-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg mb-1">Local Businesses</h3>
+              <p className="text-gray-600 text-sm">Support businesses in your community</p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-gray-400" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="hover:shadow-md transition-shadow cursor-pointer">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-purple-100 rounded-lg">
+              <Megaphone className="h-6 w-6 text-purple-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg mb-1">Announcements</h3>
+              <p className="text-gray-600 text-sm">Stay informed about important community updates</p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-gray-400" />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
+
+export { CommunityFeatures }

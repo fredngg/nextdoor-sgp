@@ -66,9 +66,7 @@ interface Participant {
   user_id: string
   quantity_requested: number
   joined_at: string
-  user_profiles: {
-    display_name: string
-  }
+  display_name: string
 }
 
 interface Comment {
@@ -76,9 +74,7 @@ interface Comment {
   user_id: string
   comment: string
   created_at: string
-  user_profiles: {
-    display_name: string
-  }
+  display_name: string
 }
 
 export default function GroupBuyPage() {
@@ -196,50 +192,102 @@ export default function GroupBuyPage() {
   const fetchParticipants = async () => {
     try {
       console.log("🔄 Fetching participants...")
-      const { data, error } = await supabase
+
+      // First get participants
+      const { data: participantsData, error: participantsError } = await supabase
         .from("group_buy_participants")
-        .select(`
-          *,
-          user_profiles!inner(display_name)
-        `)
+        .select("*")
         .eq("group_buy_id", groupBuyId)
         .order("joined_at", { ascending: true })
 
-      console.log("📊 Participants query result:", { data, error })
+      console.log("📊 Participants query result:", { participantsData, participantsError })
 
-      if (error) {
-        console.error("⚠️ Participants error:", error)
-        // Don't throw error, just log it
-      } else {
-        setParticipants(data || [])
+      if (participantsError) {
+        console.error("⚠️ Participants error:", participantsError)
+        setParticipants([])
+        return
       }
+
+      if (!participantsData || participantsData.length === 0) {
+        setParticipants([])
+        return
+      }
+
+      // Get user IDs to fetch display names
+      const userIds = participantsData.map((p) => p.user_id)
+
+      // Fetch display names for all participants
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("user_profiles")
+        .select("user_id, display_name")
+        .in("user_id", userIds)
+
+      console.log("📊 Profiles query result:", { profilesData, profilesError })
+
+      // Combine participants with their display names
+      const participantsWithNames = participantsData.map((participant) => {
+        const profile = profilesData?.find((p) => p.user_id === participant.user_id)
+        return {
+          ...participant,
+          display_name: profile?.display_name || "Anonymous User",
+        }
+      })
+
+      setParticipants(participantsWithNames)
     } catch (error) {
       console.error("❌ Error fetching participants:", error)
+      setParticipants([])
     }
   }
 
   const fetchComments = async () => {
     try {
       console.log("🔄 Fetching comments...")
-      const { data, error } = await supabase
+
+      // First get comments
+      const { data: commentsData, error: commentsError } = await supabase
         .from("group_buy_comments")
-        .select(`
-          *,
-          user_profiles!inner(display_name)
-        `)
+        .select("*")
         .eq("group_buy_id", groupBuyId)
         .order("created_at", { ascending: true })
 
-      console.log("📊 Comments query result:", { data, error })
+      console.log("📊 Comments query result:", { commentsData, commentsError })
 
-      if (error) {
-        console.error("⚠️ Comments error:", error)
-        // Don't throw error, just log it
-      } else {
-        setComments(data || [])
+      if (commentsError) {
+        console.error("⚠️ Comments error:", commentsError)
+        setComments([])
+        return
       }
+
+      if (!commentsData || commentsData.length === 0) {
+        setComments([])
+        return
+      }
+
+      // Get user IDs to fetch display names
+      const userIds = commentsData.map((c) => c.user_id)
+
+      // Fetch display names for all commenters
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("user_profiles")
+        .select("user_id, display_name")
+        .in("user_id", userIds)
+
+      console.log("📊 Comment profiles query result:", { profilesData, profilesError })
+
+      // Combine comments with their display names
+      const commentsWithNames = commentsData.map((comment) => {
+        const profile = profilesData?.find((p) => p.user_id === comment.user_id)
+        return {
+          ...comment,
+          display_name: profile?.display_name || "Anonymous User",
+        }
+      })
+
+      setComments(commentsWithNames)
     } catch (error) {
       console.error("❌ Error fetching comments:", error)
+      setComments([])
     }
   }
 
@@ -710,11 +758,11 @@ Join now: ${groupBuyUrl}`
                   <div key={participant.id} className="flex items-center gap-2 text-sm">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="text-xs">
-                        {participant.user_profiles.display_name.charAt(0).toUpperCase()}
+                        {participant.display_name.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <span className="flex items-center gap-1">
-                      {participant.user_profiles.display_name}
+                      {participant.display_name}
                       {participant.user_id === groupBuy.organizer_id && (
                         <Crown className="h-3 w-3 text-purple-500" title="Organizer" />
                       )}
@@ -772,13 +820,13 @@ Join now: ${groupBuyUrl}`
                   <div key={comment.id} className="flex gap-3">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="text-xs">
-                        {comment.user_profiles.display_name.charAt(0).toUpperCase()}
+                        {comment.display_name.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-medium flex items-center gap-1">
-                          {comment.user_profiles.display_name}
+                          {comment.display_name}
                           {comment.user_id === groupBuy.organizer_id && (
                             <Crown className="h-3 w-3 text-purple-500" title="Organizer" />
                           )}
