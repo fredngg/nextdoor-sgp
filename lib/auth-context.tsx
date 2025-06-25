@@ -35,28 +35,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log("🔄 AuthContext: About to call getUserDisplayName...")
 
-      // INCREASED timeout from 3 seconds to 10 seconds
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
-          console.log("⏰ AuthContext: fetchDisplayName TIMEOUT after 10 seconds")
-          reject(new Error("Display name fetch timeout"))
-        }, 10000) // Changed from 3000 to 10000
-      })
-
-      const displayNamePromise = getUserDisplayName(userId)
-      console.log("🔄 AuthContext: Created promises, starting race...")
-
-      const name = await Promise.race([displayNamePromise, timeoutPromise])
+      // REMOVED timeout - let the database query complete naturally
+      const name = await getUserDisplayName(userId)
       console.log("✅ AuthContext: fetchDisplayName SUCCESS, result:", name)
 
-      setDisplayName(name as string | null)
+      setDisplayName(name)
       const needsName = !name
       setNeedsDisplayName(needsName)
 
       console.log("🎯 AuthContext: needsDisplayName set to:", needsName)
     } catch (error) {
       console.error("💥 AuthContext: fetchDisplayName ERROR:", error)
-      // On timeout or error, assume user needs to set display name
+      // On error, assume user needs to set display name
       setDisplayName(null)
       setNeedsDisplayName(true)
       console.log("🔧 AuthContext: Set fallback state after error")
