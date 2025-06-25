@@ -13,30 +13,22 @@ export async function getUserDisplayName(userId: string): Promise<string | null>
   try {
     console.log("🔍 getUserDisplayName: About to query user_profiles table...")
 
-    // INCREASED timeout from 5 seconds to 15 seconds
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        console.log("⏰ getUserDisplayName: TIMEOUT after 15 seconds")
-        reject(new Error("getUserDisplayName timeout"))
-      }, 15000) // Changed from 5000 to 15000
-    })
-
-    const queryPromise = supabase.from("user_profiles").select("display_name").eq("user_id", userId).single()
-
-    console.log("🔍 getUserDisplayName: Starting Promise.race...")
-
-    const result = await Promise.race([queryPromise, timeoutPromise])
-    const { data, error } = result as any
+    // Direct query without timeout to see if that's the issue
+    const { data, error } = await supabase.from("user_profiles").select("display_name").eq("user_id", userId).single()
 
     console.log("✅ getUserDisplayName: Query completed")
     console.log("- data:", data)
     console.log("- error:", error)
+    console.log("- error code:", error?.code)
+    console.log("- error message:", error?.message)
 
+    // PGRST116 means "no rows returned" - that's expected for new users
     if (error && error.code !== "PGRST116") {
-      console.error("❌ getUserDisplayName: Error fetching display name:", error)
+      console.error("❌ getUserDisplayName: Unexpected error:", error)
       return null
     }
 
+    // If no error or just "no rows" error, check data
     const displayName = data?.display_name || null
     console.log("📝 getUserDisplayName: Final result:", displayName)
     return displayName
@@ -52,50 +44,62 @@ export async function setUserDisplayName(userId: string, displayName: string): P
   console.log("- displayName:", displayName)
 
   try {
-    // INCREASED timeout from 5 seconds to 15 seconds
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        console.log("⏰ setUserDisplayName: TIMEOUT after 15 seconds")
-        reject(new Error("setUserDisplayName timeout"))
-      }, 15000) // Changed from 5000 to 15000
-    })
-
     // First check if a profile already exists
     console.log("🔍 setUserDisplayName: Checking for existing profile...")
 
-    const existingProfilePromise = supabase.from("user_profiles").select("id").eq("user_id", userId).single()
-
-    const existingResult = await Promise.race([existingProfilePromise, timeoutPromise])
-    const { data: existingProfile, error: fetchError } = existingResult as any
+    const { data: existingProfile, error: fetchError } = await supabase
+      .from("user_profiles")
+      .select("id")
+      .eq("user_id", userId)
+      .single()
 
     console.log("🔍 setUserDisplayName: Existing profile check result:")
     console.log("- existingProfile:", existingProfile)
     console.log("- fetchError:", fetchError)
+    console.log("- fetchError code:", fetchError?.code)
 
     let result
 
     if (existingProfile) {
       // Update existing profile
-      console.log("🔄 setUserDisplayName: Updating existing profile")
-      const updatePromise = supabase.from("user_profiles").update({ display_name: displayName }).eq("user_id", userId)
+      console.log("🔄 setUserDisplayName: Updating existing profile with id:", existingProfile.id)
 
-      result = await Promise.race([updatePromise, timeoutPromise])
+      result = await supabase.from("user_profiles").update({ display_name: displayName }).eq("user_id", userId)
+
+      console.log("🔄 setUserDisplayName: Update result:", result)
     } else {
       // Insert new profile
       console.log("➕ setUserDisplayName: Creating new profile")
-      const insertPromise = supabase.from("user_profiles").insert({ user_id: userId, display_name: displayName })
 
-      result = await Promise.race([insertPromise, timeoutPromise])
+      result = await supabase.from("user_profiles").insert({
+        user_id: userId,
+        display_name: displayName,
+      })
+
+      console.log("➕ setUserDisplayName: Insert result:", result)
     }
 
-    const { error } = result as any
+    const { error } = result
 
     if (error) {
       console.error("❌ setUserDisplayName: Database operation failed:", error)
+      console.error("❌ Error details:", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      })
       return false
     }
 
     console.log("✅ setUserDisplayName: Successfully saved display name")
+
+    // Let's verify it was actually saved by reading it back
+    console.log("🔍 setUserDisplayName: Verifying save by reading back...")
+    const verifyResult = await supabase.from("user_profiles").select("display_name").eq("user_id", userId).single()
+
+    console.log("🔍 setUserDisplayName: Verification result:", verifyResult)
+
     return true
   } catch (error) {
     console.error("💥 setUserDisplayName: Exception caught:", error)
