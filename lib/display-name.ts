@@ -13,12 +13,12 @@ export async function getUserDisplayName(userId: string): Promise<string | null>
   try {
     console.log("🔍 getUserDisplayName: About to query user_profiles table...")
 
-    // Add timeout wrapper
+    // INCREASED timeout from 5 seconds to 15 seconds
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
-        console.log("⏰ getUserDisplayName: TIMEOUT after 5 seconds")
+        console.log("⏰ getUserDisplayName: TIMEOUT after 15 seconds")
         reject(new Error("getUserDisplayName timeout"))
-      }, 5000)
+      }, 15000) // Changed from 5000 to 15000
     })
 
     const queryPromise = supabase.from("user_profiles").select("display_name").eq("user_id", userId).single()
@@ -52,12 +52,12 @@ export async function setUserDisplayName(userId: string, displayName: string): P
   console.log("- displayName:", displayName)
 
   try {
-    // Add timeout wrapper
+    // INCREASED timeout from 5 seconds to 15 seconds
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
-        console.log("⏰ setUserDisplayName: TIMEOUT after 5 seconds")
+        console.log("⏰ setUserDisplayName: TIMEOUT after 15 seconds")
         reject(new Error("setUserDisplayName timeout"))
-      }, 5000)
+      }, 15000) // Changed from 5000 to 15000
     })
 
     // First check if a profile already exists

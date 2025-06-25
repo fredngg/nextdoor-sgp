@@ -35,12 +35,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log("🔄 AuthContext: About to call getUserDisplayName...")
 
-      // Add timeout to prevent hanging
+      // INCREASED timeout from 3 seconds to 10 seconds
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => {
-          console.log("⏰ AuthContext: fetchDisplayName TIMEOUT after 3 seconds")
+          console.log("⏰ AuthContext: fetchDisplayName TIMEOUT after 10 seconds")
           reject(new Error("Display name fetch timeout"))
-        }, 3000)
+        }, 10000) // Changed from 3000 to 10000
       })
 
       const displayNamePromise = getUserDisplayName(userId)

@@ -16,6 +16,8 @@ interface FirstLoginModalProps {
 export function FirstLoginModal({ isOpen, onComplete, userId }: FirstLoginModalProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // Temporarily disable the modal
+  if (true) return null
 
   const handleSubmit = async (displayName: string): Promise<boolean> => {
     try {
