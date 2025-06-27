@@ -1,44 +1,14 @@
 import { Card, CardContent } from "@/components/ui/card"
-import { ChevronRight, ShoppingCart, Users, MessageSquare, Calendar, MapPin, Megaphone } from "lucide-react"
+import { ChevronRight, ShoppingCart, Car, MapPin } from "lucide-react"
 import Link from "next/link"
 
 interface CommunityFeaturesProps {
   communitySlug: string
 }
 
-const CommunityFeatures = ({ communitySlug }: CommunityFeaturesProps) => {
+export function CommunityFeatures({ communitySlug }: CommunityFeaturesProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <Card className="hover:shadow-md transition-shadow cursor-pointer">
-        <CardContent className="p-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <Users className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-lg mb-1">Neighbors</h3>
-              <p className="text-gray-600 text-sm">Connect with people who live nearby</p>
-            </div>
-            <ChevronRight className="h-5 w-5 text-gray-400" />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="hover:shadow-md transition-shadow cursor-pointer">
-        <CardContent className="p-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-green-100 rounded-lg">
-              <MessageSquare className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-lg mb-1">Forums</h3>
-              <p className="text-gray-600 text-sm">Discuss local topics and share information</p>
-            </div>
-            <ChevronRight className="h-5 w-5 text-gray-400" />
-          </div>
-        </CardContent>
-      </Card>
-
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <Card className="hover:shadow-md transition-shadow cursor-pointer">
         <Link href={`/community/${communitySlug}/groupbuys`}>
           <CardContent className="p-6">
@@ -59,12 +29,12 @@ const CommunityFeatures = ({ communitySlug }: CommunityFeaturesProps) => {
       <Card className="hover:shadow-md transition-shadow cursor-pointer">
         <CardContent className="p-6">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-yellow-100 rounded-lg">
-              <Calendar className="h-6 w-6 text-yellow-600" />
+            <div className="p-3 bg-blue-100 rounded-lg">
+              <Car className="h-6 w-6 text-blue-600" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-lg mb-1">Events</h3>
-              <p className="text-gray-600 text-sm">Find local events and activities</p>
+              <h3 className="font-semibold text-lg mb-1">Ride Sharing</h3>
+              <p className="text-gray-600 text-sm">Share rides with neighbors for daily commutes</p>
             </div>
             <ChevronRight className="h-5 w-5 text-gray-400" />
           </div>
@@ -85,23 +55,6 @@ const CommunityFeatures = ({ communitySlug }: CommunityFeaturesProps) => {
           </div>
         </CardContent>
       </Card>
-
-      <Card className="hover:shadow-md transition-shadow cursor-pointer">
-        <CardContent className="p-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <Megaphone className="h-6 w-6 text-purple-600" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-lg mb-1">Announcements</h3>
-              <p className="text-gray-600 text-sm">Stay informed about important community updates</p>
-            </div>
-            <ChevronRight className="h-5 w-5 text-gray-400" />
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }
-
-export { CommunityFeatures }
