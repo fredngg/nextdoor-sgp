@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
-import { MapPin, Users, DollarSign, MessageCircle, Send, Clock, User, ShoppingCart } from "lucide-react"
+import { MapPin, Users, DollarSign, MessageCircle, Send, Clock, User, ShoppingCart, Crown } from "lucide-react"
 import { format } from "date-fns"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/lib/auth-context"
@@ -192,6 +192,17 @@ export function GroupBuyDetailsModal({ groupBuy, isOpen, onClose, onJoin }: Grou
     return `${diffDays} days left`
   }
 
+  // Calculate total participants including organizer
+  const getTotalParticipants = () => {
+    if (!groupBuy) return 0
+
+    // Check if organizer is already in participants list
+    const organizerInList = participants.some((p) => p.user_id === groupBuy.organizer_id)
+
+    // If organizer is not in participants list, add 1 to count
+    return organizerInList ? participants.length : participants.length + 1
+  }
+
   const calculateProgress = (current: number, target: number) => {
     return Math.min((current / target) * 100, 100)
   }
@@ -200,7 +211,36 @@ export function GroupBuyDetailsModal({ groupBuy, isOpen, onClose, onJoin }: Grou
     return individual - group
   }
 
+  // Check if current user is the organizer
+  const isOrganizer = user && groupBuy && user.id === groupBuy.organizer_id
+
+  // Get all participants including organizer for display
+  const getAllParticipants = () => {
+    if (!groupBuy) return []
+
+    const organizerInList = participants.some((p) => p.user_id === groupBuy.organizer_id)
+
+    if (organizerInList) {
+      return participants
+    } else {
+      // Add organizer to the beginning of the list
+      const organizerParticipant = {
+        id: `organizer-${groupBuy.organizer_id}`,
+        user_id: groupBuy.organizer_id,
+        quantity_requested: 1,
+        joined_at: groupBuy.created_at,
+        user_profiles: {
+          display_name: groupBuy.organizer?.display_name || "Organizer",
+        },
+      }
+      return [organizerParticipant, ...participants]
+    }
+  }
+
   if (!groupBuy) return null
+
+  const totalParticipants = getTotalParticipants()
+  const allParticipants = getAllParticipants()
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -222,13 +262,11 @@ export function GroupBuyDetailsModal({ groupBuy, isOpen, onClose, onJoin }: Grou
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>
-                  {groupBuy.current_quantity} of {groupBuy.target_quantity} people joined
+                  {totalParticipants} of {groupBuy.target_quantity} people joined
                 </span>
-                <span>
-                  {Math.round(calculateProgress(groupBuy.current_quantity, groupBuy.target_quantity))}% complete
-                </span>
+                <span>{Math.round(calculateProgress(totalParticipants, groupBuy.target_quantity))}% complete</span>
               </div>
-              <Progress value={calculateProgress(groupBuy.current_quantity, groupBuy.target_quantity)} />
+              <Progress value={calculateProgress(totalParticipants, groupBuy.target_quantity)} />
             </div>
           </div>
 
@@ -272,14 +310,24 @@ export function GroupBuyDetailsModal({ groupBuy, isOpen, onClose, onJoin }: Grou
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{groupBuy.description}</p>
           </div>
 
+          {/* Organizer Notice */}
+          {isOrganizer && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-sm text-purple-800 font-medium">
+                <Crown className="h-4 w-4" />
+                You're the organizer of this group buy and are automatically included!
+              </div>
+            </div>
+          )}
+
           {/* Join Button */}
-          {user && !isParticipant && groupBuy.status === "pending" && (
+          {user && !isParticipant && !isOrganizer && groupBuy.status === "pending" && (
             <Button onClick={() => onJoin(groupBuy.id)} className="w-full" size="lg">
               Join Group Buy
             </Button>
           )}
 
-          {isParticipant && (
+          {isParticipant && !isOrganizer && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <div className="text-sm text-blue-800 font-medium">✅ You're part of this group buy!</div>
             </div>
@@ -291,19 +339,30 @@ export function GroupBuyDetailsModal({ groupBuy, isOpen, onClose, onJoin }: Grou
           <div>
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <Users className="h-4 w-4" />
-              Participants ({participants.length})
+              Participants ({allParticipants.length})
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {participants.map((participant) => (
-                <div key={participant.id} className="flex items-center gap-2 text-sm">
-                  <Avatar className="h-6 w-6">
-                    <AvatarFallback className="text-xs">
-                      {participant.user_profiles.display_name.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span>{participant.user_profiles.display_name}</span>
-                </div>
-              ))}
+              {allParticipants.map((participant) => {
+                const isOrganizerParticipant = participant.user_id === groupBuy.organizer_id
+                return (
+                  <div
+                    key={participant.id}
+                    className={`flex items-center gap-2 text-sm p-2 rounded-lg ${
+                      isOrganizerParticipant ? "bg-purple-50 border border-purple-200" : ""
+                    }`}
+                  >
+                    <Avatar className="h-6 w-6">
+                      <AvatarFallback className="text-xs">
+                        {participant.user_profiles.display_name.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="flex items-center gap-1">
+                      {participant.user_profiles.display_name}
+                      {isOrganizerParticipant && <Crown className="h-3 w-3 text-purple-600" />}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           </div>
 
@@ -343,7 +402,10 @@ export function GroupBuyDetailsModal({ groupBuy, isOpen, onClose, onJoin }: Grou
                   </Avatar>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium">{comment.user_profiles.display_name}</span>
+                      <span className="text-sm font-medium flex items-center gap-1">
+                        {comment.user_profiles.display_name}
+                        {comment.user_id === groupBuy.organizer_id && <Crown className="h-3 w-3 text-purple-600" />}
+                      </span>
                       <span className="text-xs text-gray-500">
                         {format(new Date(comment.created_at), "MMM d, h:mm a")}
                       </span>
