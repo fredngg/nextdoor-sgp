@@ -130,125 +130,51 @@ export default function CommunityPage() {
     try {
       setPostsLoading(true)
 
-      // Fetch posts with vote data
+      // Fetch posts
       const { data: postsData, error: postsError } = await supabase
         .from("posts")
-        .select(`
-          *,
-          votes:post_votes(vote_type),
-          user_vote:post_votes!inner(vote_type)
-        `)
+        .select("*")
         .eq("community_slug", communitySlug)
-        .eq("user_vote.user_id", user?.id || "")
         .order("created_at", { ascending: false })
 
-      if (postsError && postsError.code !== "PGRST116") {
+      if (postsError) {
         throw postsError
       }
 
-      // Fetch posts without user vote data if user is not logged in
-      const { data: allPostsData, error: allPostsError } = await supabase
-        .from("posts")
-        .select(`
-          *,
-          votes:post_votes(vote_type)
-        `)
-        .eq("community_slug", communitySlug)
-        .order("created_at", { ascending: false })
-
-      if (allPostsError) {
-        throw allPostsError
-      }
-
-      // Process posts with vote counts and user votes
-      const processedPosts = (allPostsData || []).map((post) => {
-        const votes = post.votes || []
-        const upvotes = votes.filter((v: any) => v.vote_type === "up").length
-        const downvotes = votes.filter((v: any) => v.vote_type === "down").length
-        const voteCount = upvotes - downvotes
-
-        // Find user's vote if logged in
-        const userVoteData = user ? postsData?.find((p) => p.id === post.id) : null
-        const userVote = userVoteData?.user_vote?.[0]?.vote_type || null
-
-        return {
-          ...post,
-          vote_count: voteCount,
-          user_vote: userVote,
-          comments: [], // Will be loaded when needed
-        }
-      })
-
       // Fetch comments for all posts
+      const postIds = postsData?.map((p) => p.id) || []
       const { data: commentsData, error: commentsError } = await supabase
         .from("comments")
-        .select(`
-          *,
-          votes:comment_votes(vote_type),
-          user_vote:comment_votes!inner(vote_type)
-        `)
-        .in(
-          "post_id",
-          processedPosts.map((p) => p.id),
-        )
-        .eq("user_vote.user_id", user?.id || "")
+        .select("*")
+        .in("post_id", postIds)
         .order("created_at", { ascending: true })
 
-      if (commentsError && commentsError.code !== "PGRST116") {
+      if (commentsError) {
         console.error("Error fetching comments:", commentsError)
       }
 
-      // Fetch all comments without user vote data
-      const { data: allCommentsData, error: allCommentsError } = await supabase
-        .from("comments")
-        .select(`
-          *,
-          votes:comment_votes(vote_type)
-        `)
-        .in(
-          "post_id",
-          processedPosts.map((p) => p.id),
-        )
-        .order("created_at", { ascending: true })
-
-      if (allCommentsError) {
-        console.error("Error fetching all comments:", allCommentsError)
-      }
-
-      // Process comments with vote data
-      const processedComments = (allCommentsData || []).map((comment) => {
-        const votes = comment.votes || []
-        const upvotes = votes.filter((v: any) => v.vote_type === "up").length
-        const downvotes = votes.filter((v: any) => v.vote_type === "down").length
-        const voteCount = upvotes - downvotes
-
-        // Find user's vote if logged in
-        const userVoteData = user ? commentsData?.find((c) => c.id === comment.id) : null
-        const userVote = userVoteData?.user_vote?.[0]?.vote_type || null
-
-        return {
-          ...comment,
-          vote_count: voteCount,
-          user_vote: userVote,
-        }
-      })
-
       // Group comments by post_id
-      const commentsByPost = processedComments.reduce(
+      const commentsByPost = (commentsData || []).reduce(
         (acc, comment) => {
           if (!acc[comment.post_id]) {
             acc[comment.post_id] = []
           }
-          acc[comment.post_id].push(comment)
+          acc[comment.post_id].push({
+            ...comment,
+            vote_count: 0,
+            user_vote: null,
+          })
           return acc
         },
         {} as Record<string, Comment[]>,
       )
 
       // Add comments to posts
-      const postsWithComments = processedPosts.map((post) => ({
+      const postsWithComments = (postsData || []).map((post) => ({
         ...post,
         comments: commentsByPost[post.id] || [],
+        vote_count: 0,
+        user_vote: null as "up" | "down" | null,
       }))
 
       setPosts(postsWithComments)

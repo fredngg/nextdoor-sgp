@@ -275,7 +275,7 @@ function PostCard({
 }
 
 export function PostFeed({
-  posts = [], // Default to empty array to prevent undefined errors
+  posts = [],
   communitySlug,
   onPostCreated,
   onCommentAdded,
@@ -349,6 +349,11 @@ export function PostFeed({
       setNewPostBody("")
       setNewPostTag("General")
       setIsDialogOpen(false)
+
+      toast({
+        title: "Post created!",
+        description: "Your post has been shared with the community.",
+      })
     } catch (err) {
       console.error("Error creating post:", err)
       toast({
