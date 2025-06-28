@@ -11,7 +11,23 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   ArrowLeft,
   MapPin,
@@ -23,10 +39,11 @@ import {
   User,
   ShoppingCart,
   AlertCircle,
-  Share2,
   Copy,
   Check,
   Crown,
+  MoreVertical,
+  Trash2,
 } from "lucide-react"
 import { format } from "date-fns"
 import { supabase } from "@/lib/supabase"
@@ -51,6 +68,8 @@ interface GroupBuy {
   created_at: string
   community_slug: string
   organizer_display_name?: string
+  actual_participants?: number
+  is_expired?: boolean
 }
 
 interface Community {
@@ -97,6 +116,15 @@ export default function GroupBuyPage() {
   const [isOrganizer, setIsOrganizer] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deletingGroupBuy, setDeletingGroupBuy] = useState(false)
+
+  const isExpired = (deadline: string) => {
+    const deadlineDate = new Date(deadline)
+    const today = new Date()
+    today.setHours(23, 59, 59, 999) // End of today
+    return deadlineDate < today
+  }
 
   useEffect(() => {
     if (communitySlug && groupBuyId) {
@@ -152,9 +180,14 @@ export default function GroupBuyPage() {
 
       console.log("📊 Organizer query result:", { organizerData, organizerError })
 
+      // Fetch participants first to get actual count
+      await fetchParticipants()
+
+      // Set group buy data - we'll update actual_participants after fetching participants
       setGroupBuy({
         ...groupBuyData,
         organizer_display_name: organizerData?.display_name || "Anonymous Organizer",
+        is_expired: isExpired(groupBuyData.deadline),
       })
 
       // Fetch community details
@@ -172,9 +205,6 @@ export default function GroupBuyPage() {
       } else {
         setCommunity(communityData)
       }
-
-      // Fetch participants
-      await fetchParticipants()
 
       // Fetch comments
       await fetchComments()
@@ -210,6 +240,8 @@ export default function GroupBuyPage() {
 
       if (!participantsData || participantsData.length === 0) {
         setParticipants([])
+        // Update group buy with actual participant count
+        setGroupBuy((prev) => (prev ? { ...prev, actual_participants: 0 } : null))
         return
       }
 
@@ -234,9 +266,15 @@ export default function GroupBuyPage() {
       })
 
       setParticipants(participantsWithNames)
+
+      // Update group buy with actual participant count
+      setGroupBuy((prev) => (prev ? { ...prev, actual_participants: participantsWithNames.length } : null))
+
+      console.log("✅ Updated participant count:", participantsWithNames.length)
     } catch (error) {
       console.error("❌ Error fetching participants:", error)
       setParticipants([])
+      setGroupBuy((prev) => (prev ? { ...prev, actual_participants: 0 } : null))
     }
   }
 
@@ -324,6 +362,15 @@ export default function GroupBuyPage() {
 
     if (!groupBuy) return
 
+    if (groupBuy.is_expired) {
+      toast({
+        title: "Group Buy Expired",
+        description: "This group buy has already expired and is no longer accepting new members",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (isOrganizer) {
       toast({
         title: "Already Participating",
@@ -368,6 +415,70 @@ export default function GroupBuyPage() {
       })
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  const handleDeleteGroupBuy = async () => {
+    if (!groupBuy || !user || !isOrganizer) return
+
+    setDeletingGroupBuy(true)
+    try {
+      console.log("🔄 Deleting group buy:", groupBuy.id)
+
+      // First delete all participants
+      const { error: participantsError } = await supabase
+        .from("group_buy_participants")
+        .delete()
+        .eq("group_buy_id", groupBuy.id)
+
+      if (participantsError) {
+        console.error("Error deleting participants:", participantsError)
+      }
+
+      // Then delete all comments
+      const { error: commentsError } = await supabase
+        .from("group_buy_comments")
+        .delete()
+        .eq("group_buy_id", groupBuy.id)
+
+      if (commentsError) {
+        console.error("Error deleting comments:", commentsError)
+      }
+
+      // Finally delete the group buy
+      const { error: groupBuyError } = await supabase
+        .from("group_buys")
+        .delete()
+        .eq("id", groupBuy.id)
+        .eq("organizer_id", user.id) // Extra security check
+
+      if (groupBuyError) {
+        console.error("Error deleting group buy:", groupBuyError)
+        toast({
+          title: "Error",
+          description: "Failed to delete group buy",
+          variant: "destructive",
+        })
+        return
+      }
+
+      toast({
+        title: "Group Buy Deleted",
+        description: "Your group buy has been deleted successfully",
+      })
+
+      // Navigate back to group buys list
+      router.push(`/community/${communitySlug}/groupbuys`)
+    } catch (error) {
+      console.error("Error deleting group buy:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete group buy",
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingGroupBuy(false)
+      setShowDeleteDialog(false)
     }
   }
 
@@ -500,7 +611,9 @@ Join now: ${groupBuyUrl}`
     })
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string, expired: boolean) => {
+    if (expired) return "bg-red-100 text-red-800 border-red-200"
+
     switch (status) {
       case "pending":
         return "bg-yellow-100 text-yellow-800 border-yellow-200"
@@ -534,6 +647,9 @@ Join now: ${groupBuyUrl}`
   const calculateSavings = (individual: number, group: number) => {
     return individual - group
   }
+
+  // Use actual_participants if available, otherwise fall back to participants.length
+  const currentParticipants = groupBuy?.actual_participants ?? participants.length
 
   if (loading) {
     return (
@@ -610,8 +726,10 @@ Join now: ${groupBuyUrl}`
                 <div className="flex-1">
                   <CardTitle className="text-2xl mb-2">{groupBuy.title}</CardTitle>
                   <div className="flex items-center gap-4 text-sm text-gray-600 mb-4">
-                    <Badge className={getStatusColor(groupBuy.status)}>
-                      {groupBuy.status.charAt(0).toUpperCase() + groupBuy.status.slice(1)}
+                    <Badge className={getStatusColor(groupBuy.status, groupBuy.is_expired || false)}>
+                      {groupBuy.is_expired
+                        ? "Expired"
+                        : groupBuy.status.charAt(0).toUpperCase() + groupBuy.status.slice(1)}
                     </Badge>
                     <span>Category: {groupBuy.category}</span>
                     {isOrganizer && (
@@ -623,12 +741,15 @@ Join now: ${groupBuyUrl}`
                   </div>
                 </div>
 
-                {/* Share Dropdown */}
+                {/* Share/Actions Dropdown */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="text-blue-600 border-blue-200 hover:bg-blue-50">
-                      <Share2 className="h-4 w-4 mr-2" />
-                      Share
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-blue-600 border-blue-200 hover:bg-blue-50 bg-transparent"
+                    >
+                      <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
@@ -648,22 +769,43 @@ Join now: ${groupBuyUrl}`
                       )}
                       {linkCopied ? "Copied!" : "Copy Message"}
                     </DropdownMenuItem>
+                    {/* Delete option - only show for organizer */}
+                    {isOrganizer && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setShowDeleteDialog(true)}
+                          className="text-red-600 focus:text-red-600 cursor-pointer"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete Group Buy
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Progress */}
+              {/* Expired Warning */}
+              {groupBuy.is_expired && (
+                <Alert className="border-red-200 bg-red-50">
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                  <AlertDescription className="text-red-800">
+                    This group buy has expired and is no longer accepting new members.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Progress - Using actual participant count */}
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>
-                    {groupBuy.current_quantity} of {groupBuy.target_quantity} people joined
+                    {currentParticipants} of {groupBuy.target_quantity} people joined
                   </span>
-                  <span>
-                    {Math.round(calculateProgress(groupBuy.current_quantity, groupBuy.target_quantity))}% complete
-                  </span>
+                  <span>{Math.round(calculateProgress(currentParticipants, groupBuy.target_quantity))}% complete</span>
                 </div>
-                <Progress value={calculateProgress(groupBuy.current_quantity, groupBuy.target_quantity)} />
+                <Progress value={calculateProgress(currentParticipants, groupBuy.target_quantity)} />
               </div>
 
               {/* Key Information Grid */}
@@ -687,7 +829,11 @@ Join now: ${groupBuyUrl}`
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="h-4 w-4 text-gray-500" />
-                    <span>{formatDeadline(groupBuy.deadline)}</span>
+                    <span className={groupBuy.is_expired ? "text-red-600" : ""}>
+                      {groupBuy.is_expired
+                        ? `Expired on ${format(new Date(groupBuy.deadline), "MMM d, yyyy")}`
+                        : formatDeadline(groupBuy.deadline)}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <MapPin className="h-4 w-4 text-gray-500" />
@@ -707,7 +853,7 @@ Join now: ${groupBuyUrl}`
               </div>
 
               {/* Join Button */}
-              {user && !isOrganizer && !isParticipant && groupBuy.status === "pending" && (
+              {user && !isOrganizer && !isParticipant && !groupBuy.is_expired && (
                 <Button
                   onClick={handleJoinGroupBuy}
                   className="w-full bg-red-600 hover:bg-red-700"
@@ -718,7 +864,7 @@ Join now: ${groupBuyUrl}`
                 </Button>
               )}
 
-              {!user && groupBuy.status === "pending" && (
+              {!user && !groupBuy.is_expired && (
                 <div className="text-center">
                   <p className="text-sm text-gray-600 mb-3">Please log in to join this group buy</p>
                   <Button asChild className="bg-red-600 hover:bg-red-700">
@@ -738,7 +884,9 @@ Join now: ${groupBuyUrl}`
 
               {isParticipant && !isOrganizer && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <div className="text-sm text-blue-800 font-medium">✅ You're part of this group buy!</div>
+                  <div className="text-sm text-blue-800 font-medium">
+                    ✅ {groupBuy.is_expired ? "You participated in this group buy!" : "You're part of this group buy!"}
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -771,7 +919,7 @@ Join now: ${groupBuyUrl}`
                 ))}
                 {participants.length === 0 && (
                   <p className="text-sm text-gray-500 col-span-full text-center py-4">
-                    No participants yet. Be the first to join!
+                    No participants yet. {groupBuy.is_expired ? "This group buy has expired." : "Be the first to join!"}
                   </p>
                 )}
               </div>
@@ -846,6 +994,29 @@ Join now: ${groupBuyUrl}`
               </div>
             </CardContent>
           </Card>
+
+          {/* Delete Confirmation Dialog */}
+          <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Group Buy</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete this group buy? This action cannot be undone and will remove all
+                  participants and comments. All participants will be notified.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteGroupBuy}
+                  disabled={deletingGroupBuy}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  {deletingGroupBuy ? "Deleting..." : "Delete Group Buy"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
     </>

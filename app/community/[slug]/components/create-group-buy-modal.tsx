@@ -1,18 +1,18 @@
 "use client"
 
 import type React from "react"
-import { useToast } from "@/components/ui/use-toast"
 
 import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useAuth } from "@/lib/auth-context"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { supabase } from "@/lib/supabase"
-import { AlertCircle, CheckCircle } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
+import { useToast } from "@/components/ui/use-toast"
+import { CheckCircle, AlertCircle } from "lucide-react"
 
 interface CreateGroupBuyModalProps {
   isOpen: boolean
@@ -36,15 +36,14 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
     deadline: "",
   })
 
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [dateError, setDateError] = useState("")
 
-  // Format date input with auto-slashes
   const formatDateInput = (value: string) => {
     // Remove all non-numeric characters
     const numbers = value.replace(/\D/g, "")
 
-    // Add slashes at appropriate positions
+    // Format as DD/MM/YYYY
     if (numbers.length <= 2) {
       return numbers
     } else if (numbers.length <= 4) {
@@ -54,88 +53,38 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
     }
   }
 
-  // Validate date format and value
   const validateDate = (dateString: string) => {
-    if (dateString.length !== 10) return false
-
-    const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/
-    const match = dateString.match(dateRegex)
-
-    if (!match) return false
-
-    const [, day, month, year] = match
-    const date = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
-
-    // Check if date is valid
-    if (
-      date.getDate() !== Number.parseInt(day) ||
-      date.getMonth() !== Number.parseInt(month) - 1 ||
-      date.getFullYear() !== Number.parseInt(year)
-    ) {
-      return false
+    if (!dateString || dateString.length !== 10) {
+      return "Please enter a complete date (DD/MM/YYYY)"
     }
 
-    // Check if date is not in the past
+    const [day, month, year] = dateString.split("/").map(Number)
+
+    if (!day || !month || !year || day < 1 || day > 31 || month < 1 || month > 12 || year < 2024) {
+      return "Please enter a valid date"
+    }
+
+    const inputDate = new Date(year, month - 1, day)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    return date >= today
+    if (inputDate <= today) {
+      return "Deadline must be in the future"
+    }
+
+    return ""
   }
 
-  const handleInputChange = (field: string, value: string) => {
-    if (field === "deadline") {
-      const formatted = formatDateInput(value)
-      setFormData((prev) => ({ ...prev, [field]: formatted }))
+  const handleDateChange = (value: string) => {
+    const formatted = formatDateInput(value)
+    setFormData((prev) => ({ ...prev, deadline: formatted }))
 
-      // Clear error when user starts typing
-      if (errors[field]) {
-        setErrors((prev) => ({ ...prev, [field]: "" }))
-      }
+    if (formatted.length === 10) {
+      const error = validateDate(formatted)
+      setDateError(error)
     } else {
-      setFormData((prev) => ({ ...prev, [field]: value }))
-
-      // Clear error when user starts typing
-      if (errors[field]) {
-        setErrors((prev) => ({ ...prev, [field]: "" }))
-      }
+      setDateError("")
     }
-  }
-
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {}
-
-    if (!formData.title.trim()) newErrors.title = "Title is required"
-    if (!formData.description.trim()) newErrors.description = "Description is required"
-    if (!formData.category) newErrors.category = "Category is required"
-    if (!formData.target_quantity || Number.parseInt(formData.target_quantity) < 2) {
-      newErrors.target_quantity = "Target quantity must be at least 2"
-    }
-    if (!formData.price_individual || Number.parseFloat(formData.price_individual) <= 0) {
-      newErrors.price_individual = "Individual price must be greater than 0"
-    }
-    if (!formData.price_group || Number.parseFloat(formData.price_group) <= 0) {
-      newErrors.price_group = "Group price must be greater than 0"
-    }
-    if (
-      formData.price_individual &&
-      formData.price_group &&
-      Number.parseFloat(formData.price_group) >= Number.parseFloat(formData.price_individual)
-    ) {
-      newErrors.price_group = "Group price must be less than individual price"
-    }
-    if (!formData.pickup_location.trim()) newErrors.pickup_location = "Pickup location is required"
-
-    // Validate deadline
-    if (!formData.deadline) {
-      newErrors.deadline = "Deadline is required"
-    } else if (formData.deadline.length !== 10) {
-      newErrors.deadline = "Please enter date in DD/MM/YYYY format"
-    } else if (!validateDate(formData.deadline)) {
-      newErrors.deadline = "Please enter a valid future date"
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -150,53 +99,94 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
       return
     }
 
-    if (!validateForm()) return
+    // Validate date
+    const dateValidationError = validateDate(formData.deadline)
+    if (dateValidationError) {
+      setDateError(dateValidationError)
+      return
+    }
 
-    setIsSubmitting(true)
+    // Validate required fields
+    if (
+      !formData.title ||
+      !formData.description ||
+      !formData.category ||
+      !formData.target_quantity ||
+      !formData.price_individual ||
+      !formData.price_group ||
+      !formData.pickup_location ||
+      !formData.deadline
+    ) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      })
+      return
+    }
 
+    // Validate prices
+    const individualPrice = Number.parseFloat(formData.price_individual)
+    const groupPrice = Number.parseFloat(formData.price_group)
+
+    if (isNaN(individualPrice) || isNaN(groupPrice) || individualPrice <= 0 || groupPrice <= 0) {
+      toast({
+        title: "Invalid Prices",
+        description: "Please enter valid prices",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (groupPrice >= individualPrice) {
+      toast({
+        title: "Invalid Pricing",
+        description: "Group price must be lower than individual price",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validate target quantity
+    const targetQuantity = Number.parseInt(formData.target_quantity)
+    if (isNaN(targetQuantity) || targetQuantity < 2) {
+      toast({
+        title: "Invalid Target Quantity",
+        description: "Target quantity must be at least 2 people",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setLoading(true)
     try {
-      // Convert DD/MM/YYYY to ISO date
+      // Convert DD/MM/YYYY to YYYY-MM-DD for database
       const [day, month, year] = formData.deadline.split("/")
-      const isoDate = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day)).toISOString()
+      const isoDate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
 
-      const { data: groupBuyData, error: groupBuyError } = await supabase
-        .from("group_buys")
-        .insert({
-          title: formData.title.trim(),
-          description: formData.description.trim(),
-          category: formData.category,
-          target_quantity: Number.parseInt(formData.target_quantity),
-          current_quantity: 1, // Start with organizer
-          price_individual: Number.parseFloat(formData.price_individual),
-          price_group: Number.parseFloat(formData.price_group),
-          pickup_location: formData.pickup_location.trim(),
-          deadline: isoDate,
-          status: "pending",
-          organizer_id: user.id,
-          community_slug: communitySlug,
-        })
-        .select()
-        .single()
+      const { error } = await supabase.from("group_buys").insert({
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        target_quantity: targetQuantity,
+        current_quantity: 0,
+        price_individual: individualPrice,
+        price_group: groupPrice,
+        pickup_location: formData.pickup_location,
+        deadline: isoDate,
+        status: "pending",
+        organizer_id: user.id,
+        community_slug: communitySlug,
+      })
 
-      if (groupBuyError) {
-        console.error("Error creating group buy:", groupBuyError)
+      if (error) {
+        console.error("Error creating group buy:", error)
         toast({
           title: "Error",
           description: "Failed to create group buy",
           variant: "destructive",
         })
         return
-      }
-
-      // Add organizer as participant
-      const { error: participantError } = await supabase.from("group_buy_participants").insert({
-        group_buy_id: groupBuyData.id,
-        user_id: user.id,
-        quantity_requested: 1,
-      })
-
-      if (participantError) {
-        console.error("Error adding organizer as participant:", participantError)
       }
 
       toast({
@@ -215,7 +205,7 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
         pickup_location: "",
         deadline: "",
       })
-      setErrors({})
+      setDateError("")
 
       onGroupBuyCreated()
       onClose()
@@ -227,153 +217,147 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
         variant: "destructive",
       })
     } finally {
-      setIsSubmitting(false)
+      setLoading(false)
     }
   }
 
-  const isDeadlineValid = formData.deadline.length === 10 && validateDate(formData.deadline)
+  const isDateValid = formData.deadline.length === 10 && !dateError
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Group Buy</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="title">Title</Label>
-            <Input
-              id="title"
-              value={formData.title}
-              onChange={(e) => handleInputChange("title", e.target.value)}
-              placeholder="e.g., Bulk Rice Purchase"
-              className={errors.title ? "border-red-500" : ""}
-            />
-            {errors.title && <p className="text-sm text-red-500 mt-1">{errors.title}</p>}
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <Label htmlFor="title">Title *</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+                placeholder="e.g., Bulk Rice Purchase"
+                required
+              />
+            </div>
 
-          <div>
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => handleInputChange("description", e.target.value)}
-              placeholder="Describe what you're buying and any details..."
-              className={errors.description ? "border-red-500" : ""}
-            />
-            {errors.description && <p className="text-sm text-red-500 mt-1">{errors.description}</p>}
-          </div>
+            <div className="md:col-span-2">
+              <Label htmlFor="description">Description *</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="Describe what you're buying and any important details..."
+                rows={3}
+                required
+              />
+            </div>
 
-          <div>
-            <Label htmlFor="category">Category</Label>
-            <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
-              <SelectTrigger className={errors.category ? "border-red-500" : ""}>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="groceries">Groceries</SelectItem>
-                <SelectItem value="electronics">Electronics</SelectItem>
-                <SelectItem value="household">Household Items</SelectItem>
-                <SelectItem value="clothing">Clothing</SelectItem>
-                <SelectItem value="books">Books</SelectItem>
-                <SelectItem value="general">General</SelectItem>
-              </SelectContent>
-            </Select>
-            {errors.category && <p className="text-sm text-red-500 mt-1">{errors.category}</p>}
-          </div>
-
-          <div>
-            <Label htmlFor="target_quantity">Target Number of People</Label>
-            <Input
-              id="target_quantity"
-              type="number"
-              min="2"
-              value={formData.target_quantity}
-              onChange={(e) => handleInputChange("target_quantity", e.target.value)}
-              placeholder="e.g., 10"
-              className={errors.target_quantity ? "border-red-500" : ""}
-            />
-            {errors.target_quantity && <p className="text-sm text-red-500 mt-1">{errors.target_quantity}</p>}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="price_individual">Individual Price (S$)</Label>
+              <Label htmlFor="category">Category *</Label>
+              <Select
+                value={formData.category}
+                onValueChange={(value) => setFormData((prev) => ({ ...prev, category: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="groceries">Groceries</SelectItem>
+                  <SelectItem value="electronics">Electronics</SelectItem>
+                  <SelectItem value="household">Household Items</SelectItem>
+                  <SelectItem value="clothing">Clothing</SelectItem>
+                  <SelectItem value="books">Books</SelectItem>
+                  <SelectItem value="general">General</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="target_quantity">Target People *</Label>
+              <Input
+                id="target_quantity"
+                type="number"
+                min="2"
+                value={formData.target_quantity}
+                onChange={(e) => setFormData((prev) => ({ ...prev, target_quantity: e.target.value }))}
+                placeholder="e.g., 10"
+                required
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="price_individual">Individual Price (S$) *</Label>
               <Input
                 id="price_individual"
                 type="number"
                 step="0.01"
-                min="0"
+                min="0.01"
                 value={formData.price_individual}
-                onChange={(e) => handleInputChange("price_individual", e.target.value)}
-                placeholder="25.00"
-                className={errors.price_individual ? "border-red-500" : ""}
+                onChange={(e) => setFormData((prev) => ({ ...prev, price_individual: e.target.value }))}
+                placeholder="e.g., 15.00"
+                required
               />
-              {errors.price_individual && <p className="text-sm text-red-500 mt-1">{errors.price_individual}</p>}
             </div>
 
             <div>
-              <Label htmlFor="price_group">Group Price (S$)</Label>
+              <Label htmlFor="price_group">Group Price (S$) *</Label>
               <Input
                 id="price_group"
                 type="number"
                 step="0.01"
-                min="0"
+                min="0.01"
                 value={formData.price_group}
-                onChange={(e) => handleInputChange("price_group", e.target.value)}
-                placeholder="20.00"
-                className={errors.price_group ? "border-red-500" : ""}
+                onChange={(e) => setFormData((prev) => ({ ...prev, price_group: e.target.value }))}
+                placeholder="e.g., 12.00"
+                required
               />
-              {errors.price_group && <p className="text-sm text-red-500 mt-1">{errors.price_group}</p>}
             </div>
-          </div>
 
-          <div>
-            <Label htmlFor="pickup_location">Pickup Location</Label>
-            <Input
-              id="pickup_location"
-              value={formData.pickup_location}
-              onChange={(e) => handleInputChange("pickup_location", e.target.value)}
-              placeholder="e.g., Block 123 Void Deck"
-              className={errors.pickup_location ? "border-red-500" : ""}
-            />
-            {errors.pickup_location && <p className="text-sm text-red-500 mt-1">{errors.pickup_location}</p>}
-          </div>
-
-          <div>
-            <Label htmlFor="deadline">Deadline (DD/MM/YYYY)</Label>
-            <div className="relative">
+            <div className="md:col-span-2">
+              <Label htmlFor="pickup_location">Pickup Location *</Label>
               <Input
-                id="deadline"
-                value={formData.deadline}
-                onChange={(e) => handleInputChange("deadline", e.target.value)}
-                placeholder="31/12/2024"
-                maxLength={10}
-                className={`${errors.deadline ? "border-red-500" : isDeadlineValid ? "border-green-500" : ""} pr-10`}
+                id="pickup_location"
+                value={formData.pickup_location}
+                onChange={(e) => setFormData((prev) => ({ ...prev, pickup_location: e.target.value }))}
+                placeholder="e.g., Block 123 Void Deck"
+                required
               />
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                {formData.deadline.length === 10 && (
-                  <>
-                    {isDeadlineValid ? (
+            </div>
+
+            <div className="md:col-span-2">
+              <Label htmlFor="deadline">Deadline *</Label>
+              <div className="relative">
+                <Input
+                  id="deadline"
+                  value={formData.deadline}
+                  onChange={(e) => handleDateChange(e.target.value)}
+                  placeholder="DD/MM/YYYY"
+                  maxLength={10}
+                  className={`pr-10 ${dateError ? "border-red-500" : isDateValid ? "border-green-500" : ""}`}
+                  required
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                  {formData.deadline.length === 10 &&
+                    (isDateValid ? (
                       <CheckCircle className="h-4 w-4 text-green-500" />
                     ) : (
                       <AlertCircle className="h-4 w-4 text-red-500" />
-                    )}
-                  </>
-                )}
+                    ))}
+                </div>
               </div>
+              {dateError && <p className="text-sm text-red-600 mt-1">{dateError}</p>}
             </div>
-            {errors.deadline && <p className="text-sm text-red-500 mt-1">{errors.deadline}</p>}
-            <p className="text-xs text-gray-500 mt-1">Type numbers only - slashes will be added automatically</p>
           </div>
 
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
+          <div className="flex justify-end gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting} className="flex-1 bg-red-600 hover:bg-red-700">
-              {isSubmitting ? "Creating..." : "Create Group Buy"}
+            <Button type="submit" disabled={loading} className="bg-red-600 hover:bg-red-700">
+              {loading ? "Creating..." : "Create Group Buy"}
             </Button>
           </div>
         </form>
