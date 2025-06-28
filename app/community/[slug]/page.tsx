@@ -261,6 +261,10 @@ export default function CommunityPage() {
     )
   }
 
+  const handlePostDeleted = (postId: string) => {
+    setPosts((prevPosts) => prevPosts.filter((post) => post.id !== postId))
+  }
+
   if (loading) {
     return (
       <>
@@ -346,6 +350,7 @@ export default function CommunityPage() {
                     communitySlug={communitySlug}
                     onPostCreated={handlePostCreated}
                     onCommentAdded={handleCommentAdded}
+                    onPostDeleted={handlePostDeleted}
                     activeTab={activeTab}
                     onTabChange={setActiveTab}
                   />

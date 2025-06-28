@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { MessageCircle, Send, LogIn, Trash2 } from "lucide-react"
+import { MessageCircle, Send, LogIn, Trash2, MoreHorizontal } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import {
@@ -19,6 +19,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { supabase } from "@/lib/supabase"
 import { formatDistanceToNow } from "date-fns"
@@ -59,6 +60,7 @@ interface PostFeedProps {
   communitySlug: string
   onPostCreated: (post: Post) => void
   onCommentAdded: (postId: string, comment: Comment) => void
+  onPostDeleted: (postId: string) => void
   activeTab: string
   onTabChange: (tab: string) => void
 }
@@ -66,14 +68,17 @@ interface PostFeedProps {
 function PostCard({
   post,
   onCommentAdded,
+  onPostDeleted,
 }: {
   post: Post
   onCommentAdded: (postId: string, comment: Comment) => void
+  onPostDeleted: (postId: string) => void
 }) {
   const [showComments, setShowComments] = useState(false)
   const [commentBody, setCommentBody] = useState("")
   const [submittingComment, setSubmittingComment] = useState(false)
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null)
+  const [deletingPost, setDeletingPost] = useState(false)
   const { user } = useAuth()
   const { toast } = useToast()
 
@@ -187,6 +192,52 @@ function PostCard({
     }
   }
 
+  const handleDeletePost = async () => {
+    if (!user) return
+
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this post? This will also delete all comments. This action cannot be undone.",
+    )
+    if (!confirmed) return
+
+    try {
+      setDeletingPost(true)
+
+      // First delete all comments associated with the post
+      const { error: commentsError } = await supabase.from("comments").delete().eq("post_id", post.id)
+
+      if (commentsError) {
+        console.warn("Error deleting comments:", commentsError)
+        // Continue with post deletion even if comment deletion fails
+      }
+
+      // Delete the post from database
+      const { error: postError } = await supabase.from("posts").delete().eq("id", post.id).eq("user_id", user.id) // Security: only allow users to delete their own posts
+
+      if (postError) {
+        throw new Error(`Failed to delete post: ${postError.message}`)
+      }
+
+      // Update parent component state
+      onPostDeleted(post.id)
+
+      toast({
+        title: "Post deleted",
+        description: "Your post and all its comments have been successfully removed.",
+      })
+    } catch (err) {
+      console.error("Error deleting post:", err)
+      toast({
+        title: "Delete failed",
+        description: "We couldn't delete your post. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingPost(false)
+    }
+  }
+
   return (
     <Card className="mb-4">
       <CardHeader className="pb-3">
@@ -205,6 +256,36 @@ function PostCard({
               </div>
             </div>
           </div>
+
+          {/* Post options menu - only show for post author */}
+          {user && post.user_id === user.id && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-gray-400 hover:text-gray-600"
+                  disabled={deletingPost}
+                >
+                  {deletingPost ? (
+                    <span className="animate-spin text-sm">⟳</span>
+                  ) : (
+                    <MoreHorizontal className="h-4 w-4" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem
+                  onClick={handleDeletePost}
+                  className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                  disabled={deletingPost}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Post
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         <h3 className="text-lg font-semibold text-gray-900 mt-2">{post.title}</h3>
@@ -334,6 +415,7 @@ export function PostFeed({
   communitySlug,
   onPostCreated,
   onCommentAdded,
+  onPostDeleted,
   activeTab,
   onTabChange,
 }: PostFeedProps) {
@@ -510,7 +592,9 @@ export function PostFeed({
 
       <div>
         {filteredPosts.length > 0 ? (
-          filteredPosts.map((post) => <PostCard key={post.id} post={post} onCommentAdded={onCommentAdded} />)
+          filteredPosts.map((post) => (
+            <PostCard key={post.id} post={post} onCommentAdded={onCommentAdded} onPostDeleted={onPostDeleted} />
+          ))
         ) : posts.length > 0 ? (
           // Show message when no posts match the filter
           <Card className="p-6 text-center">
