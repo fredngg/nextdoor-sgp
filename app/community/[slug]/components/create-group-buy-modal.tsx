@@ -28,7 +28,11 @@ interface CreateGroupBuyModalProps {
 export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuyCreated }: CreateGroupBuyModalProps) {
   const { user } = useAuth()
   const { toast } = useToast()
-  const [loading, setLoading] = useState(false)
+
+  // Get today's date without time component for comparison
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -40,8 +44,30 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
     deadline: undefined as Date | undefined,
   })
 
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const categories = [
+    "Food & Groceries",
+    "Electronics",
+    "Home & Garden",
+    "Health & Beauty",
+    "Sports & Recreation",
+    "Books & Education",
+    "Clothing & Accessories",
+    "Services",
+    "Other",
+  ]
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
     if (!user) {
       toast({
         title: "Authentication Required",
@@ -51,18 +77,49 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
       return
     }
 
-    if (!formData.deadline) {
+    // Validation
+    if (
+      !formData.title ||
+      !formData.description ||
+      !formData.category ||
+      !formData.target_quantity ||
+      !formData.price_individual ||
+      !formData.price_group ||
+      !formData.pickup_location ||
+      !formData.deadline
+    ) {
       toast({
-        title: "Deadline Required",
-        description: "Please select a deadline for the group buy",
+        title: "Missing Information",
+        description: "Please fill in all required fields",
         variant: "destructive",
       })
       return
     }
 
-    setLoading(true)
+    const targetQuantity = Number.parseInt(formData.target_quantity)
+    const priceIndividual = Number.parseFloat(formData.price_individual)
+    const priceGroup = Number.parseFloat(formData.price_group)
+
+    if (targetQuantity < 2) {
+      toast({
+        title: "Invalid Target Quantity",
+        description: "Target quantity must be at least 2 people",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (priceGroup >= priceIndividual) {
+      toast({
+        title: "Invalid Pricing",
+        description: "Group price must be lower than individual price",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
-      console.log("🔄 Creating group buy with data:", formData)
+      setIsSubmitting(true)
 
       // Create the group buy
       const { data: groupBuyData, error: groupBuyError } = await supabase
@@ -71,27 +128,30 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
           title: formData.title,
           description: formData.description,
           category: formData.category,
-          target_quantity: Number.parseInt(formData.target_quantity),
-          current_quantity: 1, // Start with 1 since organizer is automatically included
-          price_individual: Number.parseFloat(formData.price_individual),
-          price_group: Number.parseFloat(formData.price_group),
+          target_quantity: targetQuantity,
+          current_quantity: 1, // Organizer is automatically included
+          price_individual: priceIndividual,
+          price_group: priceGroup,
           pickup_location: formData.pickup_location,
           deadline: formData.deadline.toISOString(),
           status: "pending",
-          organizer_id: user.id,
           community_slug: communitySlug,
+          organizer_id: user.id,
         })
         .select()
         .single()
 
       if (groupBuyError) {
-        console.error("❌ Group buy creation error:", groupBuyError)
-        throw groupBuyError
+        console.error("Error creating group buy:", groupBuyError)
+        toast({
+          title: "Error",
+          description: "Failed to create group buy. Please try again.",
+          variant: "destructive",
+        })
+        return
       }
 
-      console.log("✅ Group buy created:", groupBuyData)
-
-      // Automatically add the organizer as a participant
+      // Add the organizer as a participant
       const { error: participantError } = await supabase.from("group_buy_participants").insert({
         group_buy_id: groupBuyData.id,
         user_id: user.id,
@@ -99,20 +159,14 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
       })
 
       if (participantError) {
-        console.error("❌ Error adding organizer as participant:", participantError)
-        // Don't throw error here, just log it - the group buy was created successfully
-        toast({
-          title: "Group Buy Created",
-          description:
-            "Group buy created successfully, but there was an issue adding you as a participant. You can join manually.",
-        })
-      } else {
-        console.log("✅ Organizer added as participant")
-        toast({
-          title: "Group Buy Created!",
-          description: "Your group buy has been created and you've been automatically added as a participant.",
-        })
+        console.error("Error adding organizer as participant:", participantError)
+        // Don't fail the entire operation for this
       }
+
+      toast({
+        title: "Group Buy Created!",
+        description: "Your group buy has been created successfully",
+      })
 
       // Reset form
       setFormData({
@@ -129,77 +183,75 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
       onClose()
       onGroupBuyCreated()
     } catch (error) {
-      console.error("❌ Error creating group buy:", error)
+      console.error("Error creating group buy:", error)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create group buy",
+        description: "Failed to create group buy. Please try again.",
         variant: "destructive",
       })
     } finally {
-      setLoading(false)
+      setIsSubmitting(false)
     }
-  }
-
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New Group Buy</DialogTitle>
+          <DialogTitle>Create Group Buy</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <Label htmlFor="title">Title *</Label>
-              <Input
-                id="title"
-                value={formData.title}
-                onChange={(e) => handleInputChange("title", e.target.value)}
-                placeholder="e.g., iPhone 15 Cases (Bulk Order)"
-                required
-              />
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Title */}
+          <div className="space-y-2">
+            <Label htmlFor="title">Title *</Label>
+            <Input
+              id="title"
+              value={formData.title}
+              onChange={(e) => handleInputChange("title", e.target.value)}
+              placeholder="e.g., Bulk Rice Purchase"
+              required
+            />
+          </div>
 
-            <div className="md:col-span-2">
-              <Label htmlFor="description">Description *</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => handleInputChange("description", e.target.value)}
-                placeholder="Describe the item, quality, specifications, etc."
-                rows={3}
-                required
-              />
-            </div>
+          {/* Description */}
+          <div className="space-y-2">
+            <Label htmlFor="description">Description *</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => handleInputChange("description", e.target.value)}
+              placeholder="Describe what you're buying and any important details..."
+              rows={3}
+              required
+            />
+          </div>
 
-            <div>
-              <Label htmlFor="category">Category *</Label>
-              <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="groceries">Groceries</SelectItem>
-                  <SelectItem value="electronics">Electronics</SelectItem>
-                  <SelectItem value="household">Household Items</SelectItem>
-                  <SelectItem value="clothing">Clothing & Fashion</SelectItem>
-                  <SelectItem value="books">Books & Media</SelectItem>
-                  <SelectItem value="general">General Items</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Category */}
+          <div className="space-y-2">
+            <Label htmlFor="category">Category *</Label>
+            <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-            <div>
+          {/* Target Quantity and Pricing */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
               <Label htmlFor="target_quantity">Target People *</Label>
               <Input
                 id="target_quantity"
                 type="number"
                 min="2"
-                max="100"
                 value={formData.target_quantity}
                 onChange={(e) => handleInputChange("target_quantity", e.target.value)}
                 placeholder="e.g., 10"
@@ -207,7 +259,7 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
               />
             </div>
 
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="price_individual">Individual Price (S$) *</Label>
               <Input
                 id="price_individual"
@@ -221,7 +273,7 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
               />
             </div>
 
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="price_group">Group Price (S$) *</Label>
               <Input
                 id="price_group"
@@ -230,56 +282,83 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
                 min="0"
                 value={formData.price_group}
                 onChange={(e) => handleInputChange("price_group", e.target.value)}
-                placeholder="e.g., 18.00"
+                placeholder="e.g., 20.00"
                 required
               />
-            </div>
-
-            <div className="md:col-span-2">
-              <Label htmlFor="pickup_location">Pickup Location *</Label>
-              <Input
-                id="pickup_location"
-                value={formData.pickup_location}
-                onChange={(e) => handleInputChange("pickup_location", e.target.value)}
-                placeholder="e.g., Block 123 Lobby, Community Center"
-                required
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <Label>Deadline *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !formData.deadline && "text-muted-foreground",
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.deadline ? format(formData.deadline, "PPP") : "Pick a deadline"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={formData.deadline}
-                    onSelect={(date) => setFormData((prev) => ({ ...prev, deadline: date }))}
-                    disabled={(date) => date < new Date()}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
             </div>
           </div>
 
-          <div className="flex gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+          {/* Pickup Location */}
+          <div className="space-y-2">
+            <Label htmlFor="pickup_location">Pickup Location *</Label>
+            <Input
+              id="pickup_location"
+              value={formData.pickup_location}
+              onChange={(e) => handleInputChange("pickup_location", e.target.value)}
+              placeholder="e.g., Block 123 Void Deck"
+              required
+            />
+          </div>
+
+          {/* Deadline */}
+          <div className="space-y-2">
+            <Label>Deadline *</Label>
+            <Popover modal={false}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !formData.deadline && "text-muted-foreground",
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {formData.deadline ? format(formData.deadline, "PPP") : "Select deadline"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={formData.deadline}
+                  onSelect={(date) => setFormData((prev) => ({ ...prev, deadline: date }))}
+                  disabled={(date) => date < today}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {/* Savings Preview */}
+          {formData.price_individual && formData.price_group && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h4 className="font-medium text-green-800 mb-2">Savings Preview</h4>
+              <div className="text-sm text-green-700">
+                <p>
+                  Individual Price: S${Number.parseFloat(formData.price_individual).toFixed(2)} → Group Price: S$
+                  {Number.parseFloat(formData.price_group).toFixed(2)}
+                </p>
+                <p className="font-medium">
+                  Save S$
+                  {(Number.parseFloat(formData.price_individual) - Number.parseFloat(formData.price_group)).toFixed(2)}{" "}
+                  per person (
+                  {Math.round(
+                    ((Number.parseFloat(formData.price_individual) - Number.parseFloat(formData.price_group)) /
+                      Number.parseFloat(formData.price_individual)) *
+                      100,
+                  )}
+                  % off)
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Submit Button */}
+          <div className="flex gap-3 pt-4">
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="flex-1 bg-red-600 hover:bg-red-700">
-              {loading ? "Creating..." : "Create Group Buy"}
+            <Button type="submit" disabled={isSubmitting} className="flex-1 bg-red-600 hover:bg-red-700">
+              {isSubmitting ? "Creating..." : "Create Group Buy"}
             </Button>
           </div>
         </form>

@@ -275,7 +275,7 @@ function PostCard({
 }
 
 export function PostFeed({
-  posts,
+  posts = [], // Default to empty array to prevent undefined errors
   communitySlug,
   onPostCreated,
   onCommentAdded,
@@ -290,7 +290,7 @@ export function PostFeed({
   const { user } = useAuth()
   const { toast } = useToast()
 
-  // Filter posts based on active tab
+  // Filter posts based on active tab - now safe with default empty array
   const filteredPosts = activeTab === "All" ? posts : posts.filter((post) => post.tag === activeTab)
 
   // Calculate post counts for each tag

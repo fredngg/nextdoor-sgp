@@ -4,129 +4,201 @@ import type React from "react"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Navigation } from "../components/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Navigation } from "../components/navigation"
-import { Footer } from "../components/footer"
-import { useAuth } from "@/lib/auth-context"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Mail, AlertCircle, CheckCircle } from "lucide-react"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/ui/use-toast"
-import { Loader2 } from "lucide-react"
-import Link from "next/link"
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isSent, setIsSent] = useState(false)
-  const { user, signIn } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
 
-  // If user is already logged in, redirect to /me
-  if (user) {
-    router.push("/me")
-    return null
+  const [email, setEmail] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [emailError, setEmailError] = useState("")
+
+  // Email validation function
+  const validateEmail = (email: string) => {
+    if (!email) {
+      return "Email is required"
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return "Please enter a valid email address"
+    }
+
+    return ""
   }
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    if (!email) return
+  // Check if email is valid
+  const isEmailValid = email && !validateEmail(email)
 
-    setIsSubmitting(true)
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newEmail = e.target.value
+    setEmail(newEmail)
+
+    // Clear error when user starts typing
+    if (emailError) {
+      setEmailError("")
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    // Validate email before submission
+    const error = validateEmail(email)
+    if (error) {
+      setEmailError(error)
+      return
+    }
+
+    setIsLoading(true)
+    setEmailError("")
 
     try {
-      const { error } = await signIn(email)
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
 
       if (error) {
+        console.error("Login error:", error)
         toast({
-          title: "Login failed",
-          description: "We couldn't send the link. Please try again.",
+          title: "Error",
+          description: error.message || "Failed to send login email",
           variant: "destructive",
         })
       } else {
-        setIsSent(true)
+        setEmailSent(true)
         toast({
-          title: "Check your email",
-          description: "We've sent you a magic link to log in.",
+          title: "Email Sent!",
+          description: "Check your email for the login link",
         })
       }
     } catch (error) {
+      console.error("Login error:", error)
       toast({
-        title: "Login failed",
-        description: "We couldn't send the link. Please try again.",
+        title: "Error",
+        description: "An unexpected error occurred",
         variant: "destructive",
       })
     } finally {
-      setIsSubmitting(false)
+      setIsLoading(false)
     }
+  }
+
+  if (emailSent) {
+    return (
+      <>
+        <Navigation />
+        <div className="min-h-screen bg-gray-50 pt-16">
+          <div className="container mx-auto px-4 py-16 max-w-md">
+            <Card>
+              <CardHeader className="text-center">
+                <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                  <CheckCircle className="h-6 w-6 text-green-600" />
+                </div>
+                <CardTitle>Check Your Email</CardTitle>
+                <CardDescription>
+                  We've sent a login link to <strong>{email}</strong>
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Alert>
+                  <Mail className="h-4 w-4" />
+                  <AlertDescription>
+                    Click the link in your email to complete the login process. The link will expire in 1 hour.
+                  </AlertDescription>
+                </Alert>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setEmailSent(false)
+                    setEmail("")
+                  }}
+                  className="w-full"
+                >
+                  Use Different Email
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </>
+    )
   }
 
   return (
     <>
       <Navigation />
-      <div className="min-h-screen bg-gray-50 pt-16 flex flex-col">
-        <div className="container mx-auto px-4 py-8 flex items-center justify-center flex-1">
-          <Card className="w-full max-w-md">
+      <div className="min-h-screen bg-gray-50 pt-16">
+        <div className="container mx-auto px-4 py-16 max-w-md">
+          <Card>
             <CardHeader className="text-center">
-              <CardTitle className="text-2xl font-bold">Welcome to nextdoor.sg</CardTitle>
-              <CardDescription>Connect with your local HDB or condo community.</CardDescription>
+              <CardTitle>Welcome Back</CardTitle>
+              <CardDescription>Enter your email to receive a login link</CardDescription>
             </CardHeader>
             <CardContent>
-              {!isSent ? (
-                <form onSubmit={handleSubmit}>
-                  <div className="grid gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="email">Enter your email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="you@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                      />
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email Address</Label>
+                  <div className="relative">
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="your.email@example.com"
+                      value={email}
+                      onChange={handleEmailChange}
+                      className={`pr-10 ${
+                        emailError
+                          ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                          : isEmailValid
+                            ? "border-green-500 focus:border-green-500 focus:ring-green-500"
+                            : ""
+                      }`}
+                      required
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                      {emailError ? (
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                      ) : isEmailValid ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : null}
                     </div>
-                    <Button type="submit" className="bg-red-600 hover:bg-red-700" disabled={isSubmitting}>
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Sending...
-                        </>
-                      ) : (
-                        "Send me a login link"
-                      )}
-                    </Button>
                   </div>
-                </form>
-              ) : (
-                <div className="text-center py-6">
-                  <h3 className="text-lg font-medium mb-2">Check your inbox</h3>
-                  <p className="text-gray-600 mb-4">
-                    We've sent a magic link to <span className="font-medium">{email}</span>
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Click the link in the email to log in to your account. The link will expire in 24 hours.
-                  </p>
+                  {emailError && (
+                    <p className="text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {emailError}
+                    </p>
+                  )}
                 </div>
-              )}
+
+                <Button
+                  type="submit"
+                  className="w-full bg-red-600 hover:bg-red-700"
+                  disabled={isLoading || !isEmailValid}
+                >
+                  {isLoading ? "Sending..." : "Send Login Link"}
+                </Button>
+              </form>
+
+              <div className="mt-6 text-center text-sm text-gray-600">
+                <p>Don't have an account? No problem! We'll create one for you automatically when you first log in.</p>
+              </div>
             </CardContent>
-            <CardFooter className="flex flex-col items-center border-t pt-4 space-y-3">
-              <p className="text-sm text-gray-500 text-center">
-                By continuing, you agree to nextdoor.sg's{" "}
-                <Link href="/terms" className="text-red-600 hover:underline">
-                  Terms of Service
-                </Link>{" "}
-                and{" "}
-                <Link href="/privacy" className="text-red-600 hover:underline">
-                  Privacy Policy
-                </Link>
-                .
-              </p>
-            </CardFooter>
           </Card>
         </div>
-        <Footer />
       </div>
     </>
   )

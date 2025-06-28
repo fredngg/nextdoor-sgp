@@ -420,7 +420,11 @@ Join now: ${groupBuyUrl}`
               {/* Share Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-blue-600 border-blue-200 hover:bg-blue-50 bg-transparent"
+                  >
                     <Send className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -493,7 +497,7 @@ Join now: ${groupBuyUrl}`
             {/* Actions - Updated button logic */}
             <div className="flex gap-2 pt-2">
               <Link href={`/community/${communitySlug}/groupbuy/${groupBuy.id}`} className="flex-1">
-                <Button variant="outline" size="sm" className="w-full">
+                <Button variant="outline" size="sm" className="w-full bg-transparent">
                   <ExternalLink className="h-4 w-4 mr-2" />
                   View Details
                 </Button>
