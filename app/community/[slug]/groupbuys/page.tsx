@@ -1,49 +1,49 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
-import { Navigation } from "../../../components/navigation"
-import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   ArrowLeft,
-  Plus,
-  ShoppingCart,
-  Clock,
-  Users,
+  Calendar,
   MapPin,
-  Send,
+  Users,
+  Plus,
   ExternalLink,
+  Clock,
+  ShoppingCart,
+  Send,
   MessageCircle,
   Copy,
   Check,
-  Calendar,
   Crown,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/components/ui/use-toast"
+import { CreateGroupBuyModal } from "../components/create-group-buy-modal"
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
-import { CreateGroupBuyModal } from "../components/create-group-buy-modal"
 
 interface GroupBuy {
   id: string
   title: string
   description: string
+  category: string
   target_quantity: number
   current_quantity: number
   price_individual: number
   price_group: number
-  deadline: string
   pickup_location: string
-  status: "pending" | "successful" | "completed" | "expired"
-  category: string
+  deadline: string
+  status: string
   organizer_id: string
+  community_slug: string
   created_at: string
   organizer_display_name?: string
 }
@@ -129,7 +129,7 @@ export default function GroupBuysPage() {
         setCommunity(communityData)
       }
 
-      // Fetch all group buys for this community
+      // Fetch all group buys for this community - separate query to avoid relationship issues
       const { data: groupBuysData, error: groupBuysError } = await supabase
         .from("group_buys")
         .select("*")
@@ -146,7 +146,7 @@ export default function GroupBuysPage() {
         return
       }
 
-      // Fetch organizer display names
+      // Fetch organizer display names separately to avoid relationship issues
       const groupBuysWithOrganizers = await Promise.all(
         (groupBuysData || []).map(async (groupBuy) => {
           try {
@@ -226,12 +226,22 @@ export default function GroupBuysPage() {
           throw error
         }
       } else {
+        // Update the current quantity
+        const { error: updateError } = await supabase
+          .from("group_buys")
+          .update({ current_quantity: groupBuy.current_quantity + 1 })
+          .eq("id", groupBuy.id)
+
+        if (updateError) {
+          console.error("Error updating quantity:", updateError)
+        }
+
         toast({
           title: "Joined Successfully!",
           description: "You've joined the group buy",
         })
-        // Refresh participation status
-        await checkParticipationStatus([...activeGroupBuys, ...completedGroupBuys])
+        // Refresh data
+        await fetchData()
       }
     } catch (error) {
       console.error("Error joining group buy:", error)
@@ -257,12 +267,22 @@ export default function GroupBuysPage() {
         throw error
       }
 
+      // Update the current quantity
+      const { error: updateError } = await supabase
+        .from("group_buys")
+        .update({ current_quantity: Math.max(0, groupBuy.current_quantity - 1) })
+        .eq("id", groupBuy.id)
+
+      if (updateError) {
+        console.error("Error updating quantity:", updateError)
+      }
+
       toast({
         title: "Left Group Buy",
         description: "You've left the group buy",
       })
-      // Refresh participation status
-      await checkParticipationStatus([...activeGroupBuys, ...completedGroupBuys])
+      // Refresh data
+      await fetchData()
     } catch (error) {
       console.error("Error leaving group buy:", error)
       toast({
@@ -494,7 +514,7 @@ Join now: ${groupBuyUrl}`
               <span>{groupBuy.pickup_location}</span>
             </div>
 
-            {/* Actions - Updated button logic */}
+            {/* Actions */}
             <div className="flex gap-2 pt-2">
               <Link href={`/community/${communitySlug}/groupbuy/${groupBuy.id}`} className="flex-1">
                 <Button variant="outline" size="sm" className="w-full bg-transparent">
@@ -544,107 +564,101 @@ Join now: ${groupBuyUrl}`
 
   if (loading) {
     return (
-      <>
-        <Navigation />
-        <div className="min-h-screen bg-gray-50 pt-16">
-          <div className="container mx-auto px-4 py-6 max-w-6xl">
-            <Skeleton className="h-10 w-32 mb-6" />
-            <Skeleton className="h-12 w-full mb-6" />
-            <div className="space-y-4">
-              <Skeleton className="h-40 w-full" />
-              <Skeleton className="h-40 w-full" />
-              <Skeleton className="h-40 w-full" />
-            </div>
+      <div className="min-h-screen bg-gray-50 pt-16">
+        <div className="container mx-auto px-4 py-6 max-w-6xl">
+          <Skeleton className="h-10 w-32 mb-6" />
+          <Skeleton className="h-12 w-full mb-6" />
+          <div className="space-y-4">
+            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-40 w-full" />
           </div>
         </div>
-      </>
+      </div>
     )
   }
 
   return (
-    <>
-      <Navigation />
-      <div className="min-h-screen bg-gray-50 pt-16">
-        <div className="container mx-auto px-4 py-6 max-w-6xl">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => router.back()}>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to {community?.name || "Community"}
-              </Button>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Group Buys</h1>
-                <p className="text-gray-600">Save money by buying together with your neighbors</p>
-              </div>
-            </div>
-            <Button onClick={() => setShowCreateModal(true)} className="bg-red-600 hover:bg-red-700">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Group Buy
+    <div className="min-h-screen bg-gray-50 pt-16">
+      <div className="container mx-auto px-4 py-6 max-w-6xl">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" onClick={() => router.back()}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to {community?.name || "Community"}
             </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Group Buys</h1>
+              <p className="text-gray-600">Save money by buying together with your neighbors</p>
+            </div>
           </div>
-
-          {/* Tabs for Active and Completed */}
-          <Tabs defaultValue="active" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="active" className="flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4" />
-                Active ({activeGroupBuys.length})
-              </TabsTrigger>
-              <TabsTrigger value="completed" className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Completed ({completedGroupBuys.length})
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Active Group Buys */}
-            <TabsContent value="active">
-              {activeGroupBuys.length === 0 ? (
-                <Card>
-                  <CardContent className="text-center py-12">
-                    <ShoppingCart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">No Active Group Buys</h3>
-                    <p className="text-gray-600 mb-6">Be the first to start a group buy in your community!</p>
-                    <Button onClick={() => setShowCreateModal(true)} className="bg-red-600 hover:bg-red-700">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Group Buy
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {activeGroupBuys.map((groupBuy) => renderGroupBuyCard(groupBuy, false))}
-                </div>
-              )}
-            </TabsContent>
-
-            {/* Completed Group Buys */}
-            <TabsContent value="completed">
-              {completedGroupBuys.length === 0 ? (
-                <Card>
-                  <CardContent className="text-center py-12">
-                    <Clock className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">No Completed Group Buys</h3>
-                    <p className="text-gray-600">Completed group buys will appear here after their deadline passes.</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {completedGroupBuys.map((groupBuy) => renderGroupBuyCard(groupBuy, true))}
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+          <Button onClick={() => setShowCreateModal(true)} className="bg-red-600 hover:bg-red-700">
+            <Plus className="h-4 w-4 mr-2" />
+            Create Group Buy
+          </Button>
         </div>
 
-        {/* Create Group Buy Modal */}
-        <CreateGroupBuyModal
-          isOpen={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          communitySlug={communitySlug}
-          onGroupBuyCreated={fetchData}
-        />
+        {/* Tabs for Active and Completed */}
+        <Tabs defaultValue="active" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="active" className="flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4" />
+              Active ({activeGroupBuys.length})
+            </TabsTrigger>
+            <TabsTrigger value="completed" className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Completed ({completedGroupBuys.length})
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Active Group Buys */}
+          <TabsContent value="active">
+            {activeGroupBuys.length === 0 ? (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <ShoppingCart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No Active Group Buys</h3>
+                  <p className="text-gray-600 mb-6">Be the first to start a group buy in your community!</p>
+                  <Button onClick={() => setShowCreateModal(true)} className="bg-red-600 hover:bg-red-700">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Group Buy
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {activeGroupBuys.map((groupBuy) => renderGroupBuyCard(groupBuy, false))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Completed Group Buys */}
+          <TabsContent value="completed">
+            {completedGroupBuys.length === 0 ? (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <Clock className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No Completed Group Buys</h3>
+                  <p className="text-gray-600">Completed group buys will appear here after their deadline passes.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {completedGroupBuys.map((groupBuy) => renderGroupBuyCard(groupBuy, true))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
-    </>
+
+      {/* Create Group Buy Modal */}
+      <CreateGroupBuyModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        communitySlug={communitySlug}
+        onGroupBuyCreated={fetchData}
+      />
+    </div>
   )
 }
