@@ -1,7 +1,7 @@
 "use client"
 import { Search, MapPin, Building, Users, Globe } from "lucide-react"
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,6 +32,72 @@ interface LocationData {
   buildingName: string
   addressClassification: AddressClassification
   postalSector: PostalSector
+}
+
+interface FeatureProps {
+  title: string
+  description: string
+  imageSrc: string
+  imageAlt: string
+  reverse?: boolean
+}
+
+function FeatureSection({ title, description, imageSrc, imageAlt, reverse = false }: FeatureProps) {
+  const [isVisible, setIsVisible] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true)
+        }
+      },
+      { threshold: 0.1 },
+    )
+
+    if (ref.current) {
+      observer.observe(ref.current)
+    }
+
+    return () => {
+      if (ref.current) {
+        observer.unobserve(ref.current)
+      }
+    }
+  }, [])
+
+  return (
+    <div
+      ref={ref}
+      className={`py-16 px-4 transition-all duration-1000 ease-out ${
+        isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+      }`}
+    >
+      <div className="container mx-auto max-w-6xl">
+        <div
+          className={`grid grid-cols-1 lg:grid-cols-2 gap-12 items-center ${reverse ? "lg:grid-flow-col-dense" : ""}`}
+        >
+          {/* Text Content */}
+          <div className={`space-y-6 ${reverse ? "lg:col-start-2" : ""} order-2 lg:order-none`}>
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">{title}</h2>
+            <p className="text-lg text-gray-600 leading-relaxed">{description}</p>
+          </div>
+
+          {/* Image Content */}
+          <div className={`${reverse ? "lg:col-start-1" : ""} order-1 lg:order-none`}>
+            <div className="relative">
+              <img
+                src={imageSrc || "/placeholder.svg"}
+                alt={imageAlt}
+                className="w-full h-auto rounded-2xl shadow-lg"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function NextDoorSG() {
@@ -228,178 +294,225 @@ export default function NextDoorSG() {
     <>
       <Navigation />
       <div className="min-h-screen bg-white pt-16 flex flex-col">
-        <div className="container mx-auto px-4 py-8 flex-1">
-          {/* Hero Value Proposition Section with fade animation */}
-          <div
-            className={`text-center mb-8 transition-opacity duration-500 ease-in-out ${
-              showHero ? "opacity-100" : "opacity-0 h-0 overflow-hidden mb-0"
-            }`}
-          >
-            <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 mb-4">
-              Discover and Connect With Your Neighbours
-            </h1>
-            <p className="text-base text-gray-500 max-w-2xl mx-auto leading-relaxed">
-              NextDoor.sg helps you find and join real communities based on your HDB or condo address. Ask for help,
-              share updates, borrow something, or just say hello! 👋
-            </p>
-          </div>
-
-          {/* Search Form */}
-          <div className="max-w-md mx-auto mb-8">
-            <div className="bg-gray-50 rounded-lg p-6">
-              <Card className="border-0 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Search className="h-5 w-5" />
-                    Find Your Community
-                  </CardTitle>
-                  <CardDescription>Enter your Singapore postal code to get started</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="flex gap-2">
-                      <Input
-                        type="text"
-                        placeholder="e.g., 520123"
-                        value={postalCode}
-                        onChange={(e) => setPostalCode(e.target.value)}
-                        maxLength={6}
-                        pattern="[0-9]{6}"
-                        className="text-center text-lg"
-                        aria-label="Postal Code"
-                      />
-                      {locationData && (
-                        <Button type="button" variant="outline" onClick={handleClearSearch} className="shrink-0">
-                          Clear
-                        </Button>
-                      )}
-                    </div>
-                    <Button
-                      type="submit"
-                      className="w-full bg-red-600 hover:bg-red-700"
-                      disabled={loading || !postalCode.trim()}
-                    >
-                      {loading ? "Searching..." : "Discover My Community"}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
+        {/* Hero Section with Background */}
+        <div className="bg-gradient-to-b from-red-50 to-white">
+          <div className="container mx-auto px-6 md:px-8 lg:px-12 py-8">
+            {/* Hero Value Proposition Section with fade animation */}
+            <div
+              className={`text-center mb-8 transition-opacity duration-500 ease-in-out ${
+                showHero ? "opacity-100" : "opacity-0 h-0 overflow-hidden mb-0"
+              }`}
+            >
+              <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 mb-4 px-4">
+                Discover and Connect With Your Neighbours
+              </h1>
+              <p className="text-base text-gray-500 max-w-2xl mx-auto leading-relaxed px-4">
+                NextDoor.sg helps you find and join real communities based on your HDB or condo address. Ask for help,
+                share updates, borrow something, or just say hello!
+              </p>
             </div>
-          </div>
 
-          {/* Error Message */}
-          {error && (
-            <Alert variant="destructive" className="max-w-md mx-auto mb-8">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {/* Results with background container */}
-          {locationData && (
-            <div className="max-w-2xl mx-auto mt-6 p-6 bg-[#f9f9f9] rounded-lg shadow-sm">
-              <div className="space-y-6">
-                {/* Section 1: Community or Commercial Fallback */}
-                <div>
-                  {locationData.addressClassification.isCommercial ? (
-                    <CommercialFallback />
-                  ) : (
-                    <>
-                      <h2 className="text-xl font-semibold text-gray-900 mb-3">Your Community</h2>
-                      <Card className="hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-red-200 overflow-hidden">
-                        <a href={`/community/${locationData.communitySlug}`}>
-                          <CardContent className="p-6">
-                            <div className="text-center space-y-4">
-                              <div className="flex justify-center">
-                                <div className="bg-red-100 p-3 rounded-full">
-                                  <Users className="h-8 w-8 text-red-600" />
-                                </div>
-                              </div>
-                              <div>
-                                <h3 className="text-2xl font-bold text-gray-900 mb-2">{locationData.community}</h3>
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-center gap-2 text-gray-600">
-                                    <Building className="h-4 w-4" />
-                                    <span className="font-medium">District:</span>
-                                    <span>{locationData.area}</span>
-                                  </div>
-                                  <div className="flex items-center justify-center gap-2 text-gray-600">
-                                    <Globe className="h-4 w-4" />
-                                    <span className="font-medium">Region:</span>
-                                    <Badge variant="secondary" className="bg-red-100 text-red-800">
-                                      {locationData.region}
-                                    </Badge>
-                                  </div>
-                                  <div className="flex items-center justify-center gap-2 text-gray-600 text-sm">
-                                    <MapPin className="h-3 w-3" />
-                                    <span>Postal Sector {locationData.postalSector.sector_code}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </a>
-                      </Card>
-                    </>
-                  )}
-                </div>
-
-                {/* Section 2: Your Address - Always show for both residential and commercial */}
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900 mb-3">Your Address</h2>
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-3">
-                          <div>
-                            <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
-                              <MapPin className="h-4 w-4" />
-                              Postal Code
-                            </div>
-                            <p className="text-lg font-semibold">{locationData.postalCode}</p>
-                          </div>
-                          {locationData.block && (
-                            <div>
-                              <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
-                                <Building className="h-4 w-4" />
-                                Block Number
-                              </div>
-                              <p className="text-lg font-semibold">{locationData.block}</p>
-                            </div>
-                          )}
-                          {locationData.buildingName && locationData.buildingName !== "NIL" && (
-                            <div>
-                              <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
-                                <Building className="h-4 w-4" />
-                                Building Name
-                              </div>
-                              <p className="text-lg font-semibold">{locationData.buildingName}</p>
-                            </div>
-                          )}
-                        </div>
-                        <div className="space-y-3">
-                          <div>
-                            <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
-                              <MapPin className="h-4 w-4" />
-                              Street Name
-                            </div>
-                            <p className="text-lg font-semibold">{locationData.street}</p>
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
-                              <MapPin className="h-4 w-4" />
-                              Full Address
-                            </div>
-                            <p className="text-sm text-gray-700">{locationData.fullAddress}</p>
-                          </div>
-                        </div>
+            {/* Search Form */}
+            <div className="max-w-md mx-auto mb-8">
+              <div className="bg-white rounded-lg p-6 shadow-sm">
+                <Card className="border-0 shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Search className="h-5 w-5" />
+                      Find Your Community
+                    </CardTitle>
+                    <CardDescription>Enter your Singapore postal code to get started</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                      <div className="flex gap-2">
+                        <Input
+                          type="text"
+                          placeholder="e.g., 520123"
+                          value={postalCode}
+                          onChange={(e) => setPostalCode(e.target.value)}
+                          maxLength={6}
+                          pattern="[0-9]{6}"
+                          className="text-center text-lg"
+                          aria-label="Postal Code"
+                        />
+                        {locationData && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleClearSearch}
+                            className="shrink-0 bg-transparent"
+                          >
+                            Clear
+                          </Button>
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                      <Button
+                        type="submit"
+                        className="w-full bg-red-600 hover:bg-red-700"
+                        disabled={loading || !postalCode.trim()}
+                      >
+                        {loading ? "Searching..." : "Discover My Community"}
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
               </div>
             </div>
-          )}
+
+            {/* Error Message */}
+            {error && (
+              <Alert variant="destructive" className="max-w-md mx-auto mb-8">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Results with background container */}
+            {locationData && (
+              <div className="max-w-2xl mx-auto mt-6 p-6 bg-white rounded-lg shadow-sm">
+                <div className="space-y-6">
+                  {/* Section 1: Community or Commercial Fallback */}
+                  <div>
+                    {locationData.addressClassification.isCommercial ? (
+                      <CommercialFallback />
+                    ) : (
+                      <>
+                        <h2 className="text-xl font-semibold text-gray-900 mb-3">Your Community</h2>
+                        <Card className="hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-red-200 overflow-hidden">
+                          <a href={`/community/${locationData.communitySlug}`}>
+                            <CardContent className="p-6">
+                              <div className="text-center space-y-4">
+                                <div className="flex justify-center">
+                                  <div className="bg-red-100 p-3 rounded-full">
+                                    <Users className="h-8 w-8 text-red-600" />
+                                  </div>
+                                </div>
+                                <div>
+                                  <h3 className="text-2xl font-bold text-gray-900 mb-2">{locationData.community}</h3>
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-center gap-2 text-gray-600">
+                                      <Building className="h-4 w-4" />
+                                      <span className="font-medium">District:</span>
+                                      <span>{locationData.area}</span>
+                                    </div>
+                                    <div className="flex items-center justify-center gap-2 text-gray-600">
+                                      <Globe className="h-4 w-4" />
+                                      <span className="font-medium">Region:</span>
+                                      <Badge variant="secondary" className="bg-red-100 text-red-800">
+                                        {locationData.region}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex items-center justify-center gap-2 text-gray-600 text-sm">
+                                      <MapPin className="h-3 w-3" />
+                                      <span>Postal Sector {locationData.postalSector.sector_code}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </a>
+                        </Card>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Section 2: Your Address - Always show for both residential and commercial */}
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900 mb-3">Your Address</h2>
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-3">
+                            <div>
+                              <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
+                                <MapPin className="h-4 w-4" />
+                                Postal Code
+                              </div>
+                              <p className="text-lg font-semibold">{locationData.postalCode}</p>
+                            </div>
+                            {locationData.block && (
+                              <div>
+                                <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
+                                  <Building className="h-4 w-4" />
+                                  Block Number
+                                </div>
+                                <p className="text-lg font-semibold">{locationData.block}</p>
+                              </div>
+                            )}
+                            {locationData.buildingName && locationData.buildingName !== "NIL" && (
+                              <div>
+                                <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
+                                  <Building className="h-4 w-4" />
+                                  Building Name
+                                </div>
+                                <p className="text-lg font-semibold">{locationData.buildingName}</p>
+                              </div>
+                            )}
+                          </div>
+                          <div className="space-y-3">
+                            <div>
+                              <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
+                                <MapPin className="h-4 w-4" />
+                                Street Name
+                              </div>
+                              <p className="text-lg font-semibold">{locationData.street}</p>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
+                                <MapPin className="h-4 w-4" />
+                                Full Address
+                              </div>
+                              <p className="text-sm text-gray-700">{locationData.fullAddress}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Feature Highlights Section - Only show when no search results */}
+        {!locationData && (
+          <div className="bg-white">
+            {/* Feature 1: Join Real Communities by Address */}
+            <div className="bg-white">
+              <FeatureSection
+                title="Join Real Communities by Address"
+                description="Find your exact HDB or condo community just by entering your postal code."
+                imageSrc="/feature-postal-search.png"
+                imageAlt="Singapore HDB building with map pin and postal code search interface"
+                reverse={false}
+              />
+            </div>
+
+            {/* Feature 2: Get Help, Lend a Hand */}
+            <div className="bg-gray-50">
+              <FeatureSection
+                title="Get Help, Lend a Hand, or Just Say Hi"
+                description="Ask neighbors for help, share updates, or simply introduce yourself. Every block is a community."
+                imageSrc="/feature-neighbors-helping.png"
+                imageAlt="Neighbors helping each other and chatting in HDB corridor"
+                reverse={true}
+              />
+            </div>
+
+            {/* Feature 3: Stay Updated */}
+            <div className="bg-white">
+              <FeatureSection
+                title="Stay Updated with Real-Time Conversations"
+                description="See what's happening in your block — from lost pets to community events, all in one place."
+                imageSrc="/feature-social-feed.png"
+                imageAlt="Social feed with community updates and notifications"
+                reverse={false}
+              />
+            </div>
+          </div>
+        )}
+
         <Footer />
       </div>
     </>
