@@ -295,7 +295,7 @@ export default function NextDoorSG() {
       <div className="min-h-screen bg-white pt-16 flex flex-col">
         {/* Hero Section with Split Layout */}
         <div className="bg-white">
-          <div className="container mx-auto px-6 md:px-8 lg:px-12 py-12 md:py-16">
+          <div className="container mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-12 md:py-16">
             {/* Hero Split Layout - Only show when no search results */}
             <div
               className={`transition-opacity duration-500 ease-in-out ${
@@ -304,8 +304,8 @@ export default function NextDoorSG() {
             >
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                 {/* Left Column - Main CTA */}
-                <div className="flex flex-col justify-center h-full order-2 lg:order-1">
-                  <div className="space-y-4">
+                <div className="flex flex-col justify-center h-full order-1 lg:order-1 w-full">
+                  <div className="space-y-4 text-center lg:text-left">
                     <h1 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight lg:text-5xl">
                       Discover and Connect With Your Neighbours
                     </h1>
@@ -316,61 +316,72 @@ export default function NextDoorSG() {
                   </div>
 
                   {/* Search Form */}
-                  <div className="space-y-4 mt-8">
+                  <div className="space-y-4 mt-8 w-full">
                     <div className="mb-0">
-                      <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-0">Find Your Community</h2>
+                      <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-0 text-center lg:text-left">
+                        Find Your Community
+                      </h2>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                      <div className="space-y-3">
-                        <label htmlFor="postal-code" className="text-sm font-medium text-gray-700 block">
+                    <form onSubmit={handleSubmit} className="space-y-4 w-full">
+                      <div className="space-y-3 w-full">
+                        <label
+                          htmlFor="postal-code"
+                          className="text-sm font-medium text-gray-700 block text-center lg:text-left"
+                        >
                           Enter your Singapore postal code
                         </label>
-                        <div className="flex gap-3">
-                          <input
-                            id="postal-code"
-                            type="text"
-                            placeholder="e.g., 520123"
-                            value={postalCode}
-                            onChange={(e) => setPostalCode(e.target.value)}
-                            maxLength={6}
-                            pattern="[0-9]{6}"
-                            className="text-lg px-4 py-5 w-56 h-16 bg-gray-100 border-0 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition-all duration-200 placeholder:text-gray-500"
-                            aria-label="Postal Code"
-                          />
-                          {locationData && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={handleClearSearch}
-                              className="px-4 py-3 bg-transparent h-16"
-                            >
-                              Clear
-                            </Button>
-                          )}
+                        <div className="w-full flex flex-col items-center lg:items-start">
+                          <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs sm:max-w-none lg:max-w-none justify-center lg:justify-start">
+                            <input
+                              id="postal-code"
+                              type="text"
+                              placeholder="e.g., 520123"
+                              value={postalCode}
+                              onChange={(e) => setPostalCode(e.target.value)}
+                              maxLength={6}
+                              pattern="[0-9]{6}"
+                              className="text-lg px-4 py-5 w-full sm:w-56 h-16 bg-gray-100 border-0 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition-all duration-200 placeholder:text-gray-500"
+                              aria-label="Postal Code"
+                            />
+                            {locationData && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleClearSearch}
+                                className="px-4 py-3 bg-transparent h-16 w-full sm:w-auto"
+                              >
+                                Clear
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <Button
-                        type="submit"
-                        size="lg"
-                        className="w-56 bg-red-600 hover:bg-red-700 text-base py-4 h-12 font-semibold"
-                        disabled={loading || !postalCode.trim()}
-                      >
-                        {loading ? "Searching..." : "Discover Community"}
-                      </Button>
+                      <div className="w-full flex justify-center lg:justify-start">
+                        <Button
+                          type="submit"
+                          size="lg"
+                          className="w-full max-w-xs sm:w-56 bg-red-600 hover:bg-red-700 text-base py-4 h-12 font-semibold"
+                          disabled={loading || !postalCode.trim()}
+                        >
+                          {loading ? "Searching..." : "Discover Community"}
+                        </Button>
+                      </div>
                     </form>
 
                     {/* Error Message */}
                     {error && (
-                      <Alert variant="destructive" className="max-w-md">
-                        <AlertDescription>{error}</AlertDescription>
-                      </Alert>
+                      <div className="w-full flex justify-center lg:justify-start">
+                        <Alert variant="destructive" className="max-w-xs sm:max-w-md w-full">
+                          <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                      </div>
                     )}
                   </div>
                 </div>
 
-                {/* Right Column - Hero Illustration */}
-                <div className="order-1 lg:order-2">
+                {/* Right Column - Hero Illustration - Hidden on mobile */}
+                <div className="order-2 lg:order-2 hidden lg:block">
                   <div className="relative">
                     <img
                       src="/new-hero-illustration.jpg"
