@@ -1,27 +1,49 @@
-"use client"
-
+import { Building2, Users, MapPin } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Info } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
 export function CommercialFallback() {
   return (
-    <Card className="bg-gray-50 border-gray-200">
-      <CardContent className="p-6">
-        <div className="text-center space-y-4">
-          <div className="flex justify-center">
-            <div className="bg-gray-100 p-3 rounded-full">
-              <Info className="h-8 w-8 text-gray-600" />
-            </div>
-          </div>
-          <div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">This address is a commercial location</h3>
-            <p className="text-gray-600 max-w-md mx-auto leading-relaxed">
-              nextdoor.sg is currently focused on residential HDB, condo, and landed communities. We may expand into
-              commercial locations in the future. Stay tuned!
-            </p>
+    <div className="space-y-6">
+      <div className="text-center">
+        <div className="flex justify-center mb-4">
+          <div className="bg-blue-100 p-3 rounded-full">
+            <Building2 className="h-8 w-8 text-blue-600" />
           </div>
         </div>
-      </CardContent>
-    </Card>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Commercial Address Detected</h2>
+        <p className="text-gray-600">
+          This appears to be a commercial or office building. MyNextDoor.sg is designed for residential communities.
+        </p>
+      </div>
+
+      <Card className="border-2 border-blue-200">
+        <CardContent className="p-6">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Users className="h-5 w-5 text-blue-600" />
+              <span className="font-medium text-gray-900">Looking for a residential community?</span>
+            </div>
+            <p className="text-gray-600 text-sm">
+              If you live in a nearby residential area, try searching with your home postal code instead.
+            </p>
+
+            <div className="flex items-center gap-3 mt-4">
+              <MapPin className="h-5 w-5 text-blue-600" />
+              <span className="font-medium text-gray-900">Business networking coming soon</span>
+            </div>
+            <p className="text-gray-600 text-sm">
+              We're working on features for commercial areas and business networking. Stay tuned!
+            </p>
+
+            <div className="mt-4">
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                Commercial Area
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

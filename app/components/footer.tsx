@@ -7,10 +7,8 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Brand */}
           <div>
-            <h3 className="text-lg font-bold text-red-600 mb-4">nextdoor.sg</h3>
-            <p className="text-gray-600 text-sm">
-              Connect with your local HDB and condo communities across Singapore.
-            </p>
+            <h3 className="text-lg font-bold text-red-600 mb-4">mynextdoor.sg</h3>
+            <p className="text-gray-600 text-sm">Connect with your local HDB and condo communities across Singapore.</p>
           </div>
 
           {/* Links */}
@@ -35,8 +33,8 @@ export function Footer() {
             <h4 className="font-semibold text-gray-900 mb-4">Support</h4>
             <p className="text-gray-600 text-sm">
               Questions or feedback? Contact us at{" "}
-              <a href="mailto:hello@nextdoor.sg" className="text-red-600 hover:underline">
-                hello@nextdoor.sg
+              <a href="mailto:hello@mynextdoor.sg" className="text-red-600 hover:underline">
+                hello@mynextdoor.sg
               </a>
             </p>
           </div>
@@ -44,7 +42,7 @@ export function Footer() {
 
         <div className="border-t border-gray-200 mt-8 pt-6">
           <p className="text-center text-gray-500 text-sm">
-            © {new Date().getFullYear()} nextdoor.sg. All rights reserved.
+            © {new Date().getFullYear()} mynextdoor.sg. All rights reserved.
           </p>
         </div>
       </div>

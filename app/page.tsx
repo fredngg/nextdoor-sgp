@@ -1,10 +1,9 @@
 "use client"
-import { Search, MapPin, Building, Users, Globe } from "lucide-react"
+import { MapPin, Building, Users, Globe } from "lucide-react"
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Navigation } from "./components/navigation"
@@ -80,7 +79,7 @@ function FeatureSection({ title, description, imageSrc, imageAlt, reverse = fals
         >
           {/* Text Content */}
           <div className={`space-y-6 ${reverse ? "lg:col-start-2" : ""} order-2 lg:order-none`}>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">{title}</h2>
+            <h2 className="text-2xl md:text-3xl font-semibold text-gray-900 leading-tight">{title}</h2>
             <p className="text-lg text-gray-600 leading-relaxed">{description}</p>
           </div>
 
@@ -294,78 +293,94 @@ export default function NextDoorSG() {
     <>
       <Navigation />
       <div className="min-h-screen bg-white pt-16 flex flex-col">
-        {/* Hero Section with Background */}
-        <div className="bg-gradient-to-b from-red-50 to-white">
-          <div className="container mx-auto px-6 md:px-8 lg:px-12 py-8">
-            {/* Hero Value Proposition Section with fade animation */}
+        {/* Hero Section with Split Layout */}
+        <div className="bg-white">
+          <div className="container mx-auto px-6 md:px-8 lg:px-12 py-12 md:py-16">
+            {/* Hero Split Layout - Only show when no search results */}
             <div
-              className={`text-center mb-8 transition-opacity duration-500 ease-in-out ${
-                showHero ? "opacity-100" : "opacity-0 h-0 overflow-hidden mb-0"
+              className={`transition-opacity duration-500 ease-in-out ${
+                showHero ? "opacity-100" : "opacity-0 h-0 overflow-hidden"
               }`}
             >
-              <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 mb-4 px-4">
-                Discover and Connect With Your Neighbours
-              </h1>
-              <p className="text-base text-gray-500 max-w-2xl mx-auto leading-relaxed px-4">
-                NextDoor.sg helps you find and join real communities based on your HDB or condo address. Ask for help,
-                share updates, borrow something, or just say hello! 👋
-              </p>
-            </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                {/* Left Column - Main CTA */}
+                <div className="flex flex-col justify-center h-full order-2 lg:order-1">
+                  <div className="space-y-4">
+                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight lg:text-5xl">
+                      Discover and Connect With Your Neighbours
+                    </h1>
+                    <p className="text-sm md:text-base text-gray-600 leading-relaxed">
+                      MyNextDoor.sg helps you find and join real communities based on your HDB or condo address. Ask for
+                      help, share updates, borrow something, or just say hello! 👋
+                    </p>
+                  </div>
 
-            {/* Search Form */}
-            <div className="max-w-md mx-auto mb-8">
-              <div className="bg-white rounded-lg p-6 shadow-sm">
-                <Card className="border-0 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Search className="h-5 w-5" />
-                      Find Your Community
-                    </CardTitle>
-                    <CardDescription>Enter your Singapore postal code to get started</CardDescription>
-                  </CardHeader>
-                  <CardContent>
+                  {/* Search Form */}
+                  <div className="space-y-4 mt-8">
+                    <div className="mb-0">
+                      <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-0">Find Your Community</h2>
+                    </div>
+
                     <form onSubmit={handleSubmit} className="space-y-4">
-                      <div className="flex gap-2">
-                        <Input
-                          type="text"
-                          placeholder="e.g., 520123"
-                          value={postalCode}
-                          onChange={(e) => setPostalCode(e.target.value)}
-                          maxLength={6}
-                          pattern="[0-9]{6}"
-                          className="text-center text-lg"
-                          aria-label="Postal Code"
-                        />
-                        {locationData && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={handleClearSearch}
-                            className="shrink-0 bg-transparent"
-                          >
-                            Clear
-                          </Button>
-                        )}
+                      <div className="space-y-3">
+                        <label htmlFor="postal-code" className="text-sm font-medium text-gray-700 block">
+                          Enter your Singapore postal code
+                        </label>
+                        <div className="flex gap-3">
+                          <input
+                            id="postal-code"
+                            type="text"
+                            placeholder="e.g., 520123"
+                            value={postalCode}
+                            onChange={(e) => setPostalCode(e.target.value)}
+                            maxLength={6}
+                            pattern="[0-9]{6}"
+                            className="text-lg px-4 py-5 w-56 h-16 bg-gray-100 border-0 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white transition-all duration-200 placeholder:text-gray-500"
+                            aria-label="Postal Code"
+                          />
+                          {locationData && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={handleClearSearch}
+                              className="px-4 py-3 bg-transparent h-16"
+                            >
+                              Clear
+                            </Button>
+                          )}
+                        </div>
                       </div>
                       <Button
                         type="submit"
-                        className="w-full bg-red-600 hover:bg-red-700"
+                        size="lg"
+                        className="w-56 bg-red-600 hover:bg-red-700 text-base py-4 h-12 font-semibold"
                         disabled={loading || !postalCode.trim()}
                       >
-                        {loading ? "Searching..." : "Discover My Community"}
+                        {loading ? "Searching..." : "Discover Community"}
                       </Button>
                     </form>
-                  </CardContent>
-                </Card>
+
+                    {/* Error Message */}
+                    {error && (
+                      <Alert variant="destructive" className="max-w-md">
+                        <AlertDescription>{error}</AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Column - Hero Illustration */}
+                <div className="order-1 lg:order-2">
+                  <div className="relative">
+                    <img
+                      src="/hero-illustration.png"
+                      alt="Diverse community of families and neighbors in Singapore HDB estate with colorful buildings and playground"
+                      className="w-full h-[500px] object-cover object-center rounded-2xl shadow-lg"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-
-            {/* Error Message */}
-            {error && (
-              <Alert variant="destructive" className="max-w-md mx-auto mb-8">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
 
             {/* Results with background container */}
             {locationData && (
@@ -478,36 +493,36 @@ export default function NextDoorSG() {
         {/* Feature Highlights Section - Only show when no search results */}
         {!locationData && (
           <div className="bg-white">
-            {/* Feature 1: Join Real Communities by Address */}
+            {/* Feature 1: Join Real Communities by Address - Image Left, Text Right */}
             <div className="bg-white">
               <FeatureSection
                 title="Join Real Communities by Address"
                 description="Find your exact HDB or condo community just by entering your postal code."
                 imageSrc="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/1.jpg-YVycUu9L5bTzrw0EbhhJNK3U3oi2ZX.png"
                 imageAlt="Woman with smartphone standing in front of Singapore HDB buildings with location markers"
-                reverse={false}
+                reverse={true}
               />
             </div>
 
-            {/* Feature 2: Get Help, Lend a Hand */}
+            {/* Feature 2: Get Help, Lend a Hand - Text Left, Image Right */}
             <div className="bg-gray-50">
               <FeatureSection
                 title="Get Help, Lend a Hand, or Just Say Hi"
                 description="Ask neighbors for help, share updates, or simply introduce yourself. Every block is a community."
                 imageSrc="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/2.jpg-T7o82GkY85rKLpMwOntlgLrRX8Zj3i.jpeg"
                 imageAlt="Neighbors helping each other in HDB corridor - man with package, woman waving, and another neighbor"
-                reverse={true}
+                reverse={false}
               />
             </div>
 
-            {/* Feature 3: Stay Updated */}
+            {/* Feature 3: Stay Updated - Image Left, Text Right */}
             <div className="bg-white">
               <FeatureSection
                 title="Stay Updated with Real-Time Conversations"
                 description="See what's happening in your block — from lost pets to community events, all in one place."
                 imageSrc="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/3.jpg-VgdKkNyHKZiKwYT7C98QN4eamg6S9d.png"
                 imageAlt="Two neighbors using phones in evening HDB setting with community notification bubbles"
-                reverse={false}
+                reverse={true}
               />
             </div>
           </div>

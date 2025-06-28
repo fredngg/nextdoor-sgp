@@ -50,7 +50,7 @@ export function Navigation() {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center">
-            <span className="text-2xl font-bold text-red-600">nextdoor.sg</span>
+            <span className="text-2xl font-bold text-red-600">mynextdoor.sg</span>
           </Link>
 
           <div className="flex items-center space-x-4">
