@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { useToast } from "@/components/ui/use-toast" // Import useToast hook
 
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -11,7 +12,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth-context"
 import { supabase } from "@/lib/supabase"
-import { useToast } from "@/components/ui/use-toast"
 import { AlertCircle, CheckCircle } from "lucide-react"
 
 interface CreateGroupBuyModalProps {
@@ -23,7 +23,7 @@ interface CreateGroupBuyModalProps {
 
 export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuyCreated }: CreateGroupBuyModalProps) {
   const { user } = useAuth()
-  const { toast } = useToast()
+  const { toast } = useToast() // Declare useToast hook
 
   const [formData, setFormData] = useState({
     title: "",
@@ -39,25 +39,22 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Auto-format date input as DD/MM/YYYY
+  // Format date input with auto-slashes
   const formatDateInput = (value: string) => {
     // Remove all non-numeric characters
     const numbers = value.replace(/\D/g, "")
 
-    // Limit to 8 digits (DDMMYYYY)
-    const limited = numbers.slice(0, 8)
-
     // Add slashes at appropriate positions
-    if (limited.length >= 5) {
-      return `${limited.slice(0, 2)}/${limited.slice(2, 4)}/${limited.slice(4)}`
-    } else if (limited.length >= 3) {
-      return `${limited.slice(0, 2)}/${limited.slice(2)}`
+    if (numbers.length <= 2) {
+      return numbers
+    } else if (numbers.length <= 4) {
+      return `${numbers.slice(0, 2)}/${numbers.slice(2)}`
     } else {
-      return limited
+      return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`
     }
   }
 
-  // Validate date format and ensure it's not in the past
+  // Validate date format and value
   const validateDate = (dateString: string) => {
     if (dateString.length !== 10) return false
 
@@ -69,7 +66,7 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
     const [, day, month, year] = match
     const date = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
 
-    // Check if the date is valid
+    // Check if date is valid
     if (
       date.getDate() !== Number.parseInt(day) ||
       date.getMonth() !== Number.parseInt(month) - 1 ||
@@ -78,10 +75,9 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
       return false
     }
 
-    // Check if date is today or in the future
+    // Check if date is not in the past
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    date.setHours(0, 0, 0, 0)
 
     return date >= today
   }
@@ -94,16 +90,6 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
       // Clear error when user starts typing
       if (errors[field]) {
         setErrors((prev) => ({ ...prev, [field]: "" }))
-      }
-
-      // Validate when complete
-      if (formatted.length === 10) {
-        if (!validateDate(formatted)) {
-          setErrors((prev) => ({
-            ...prev,
-            [field]: "Please enter a valid date that is today or in the future",
-          }))
-        }
       }
     } else {
       setFormData((prev) => ({ ...prev, [field]: value }))
@@ -138,12 +124,14 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
       newErrors.price_group = "Group price must be less than individual price"
     }
     if (!formData.pickup_location.trim()) newErrors.pickup_location = "Pickup location is required"
+
+    // Validate deadline
     if (!formData.deadline) {
       newErrors.deadline = "Deadline is required"
     } else if (formData.deadline.length !== 10) {
-      newErrors.deadline = "Please enter a complete date (DD/MM/YYYY)"
+      newErrors.deadline = "Please enter date in DD/MM/YYYY format"
     } else if (!validateDate(formData.deadline)) {
-      newErrors.deadline = "Please enter a valid date that is today or in the future"
+      newErrors.deadline = "Please enter a valid future date"
     }
 
     setErrors(newErrors)
@@ -167,53 +155,48 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
     setIsSubmitting(true)
 
     try {
-      // Convert DD/MM/YYYY to ISO format for database
+      // Convert DD/MM/YYYY to ISO date
       const [day, month, year] = formData.deadline.split("/")
       const isoDate = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day)).toISOString()
 
-      const { error } = await supabase.from("group_buys").insert({
-        title: formData.title.trim(),
-        description: formData.description.trim(),
-        category: formData.category,
-        target_quantity: Number.parseInt(formData.target_quantity),
-        current_quantity: 1, // Organizer is automatically included
-        price_individual: Number.parseFloat(formData.price_individual),
-        price_group: Number.parseFloat(formData.price_group),
-        pickup_location: formData.pickup_location.trim(),
-        deadline: isoDate,
-        status: "pending",
-        organizer_id: user.id,
-        community_slug: communitySlug,
-      })
+      const { data: groupBuyData, error: groupBuyError } = await supabase
+        .from("group_buys")
+        .insert({
+          title: formData.title.trim(),
+          description: formData.description.trim(),
+          category: formData.category,
+          target_quantity: Number.parseInt(formData.target_quantity),
+          current_quantity: 1, // Start with organizer
+          price_individual: Number.parseFloat(formData.price_individual),
+          price_group: Number.parseFloat(formData.price_group),
+          pickup_location: formData.pickup_location.trim(),
+          deadline: isoDate,
+          status: "pending",
+          organizer_id: user.id,
+          community_slug: communitySlug,
+        })
+        .select()
+        .single()
 
-      if (error) {
-        console.error("Error creating group buy:", error)
+      if (groupBuyError) {
+        console.error("Error creating group buy:", groupBuyError)
         toast({
           title: "Error",
-          description: "Failed to create group buy. Please try again.",
+          description: "Failed to create group buy",
           variant: "destructive",
         })
         return
       }
 
-      // Get the created group buy to add organizer as participant
-      const { data: groupBuyData, error: fetchError } = await supabase
-        .from("group_buys")
-        .select("id")
-        .eq("organizer_id", user.id)
-        .eq("community_slug", communitySlug)
-        .eq("title", formData.title.trim())
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single()
+      // Add organizer as participant
+      const { error: participantError } = await supabase.from("group_buy_participants").insert({
+        group_buy_id: groupBuyData.id,
+        user_id: user.id,
+        quantity_requested: 1,
+      })
 
-      if (!fetchError && groupBuyData) {
-        // Add organizer as participant
-        await supabase.from("group_buy_participants").insert({
-          group_buy_id: groupBuyData.id,
-          user_id: user.id,
-          quantity_requested: 1,
-        })
+      if (participantError) {
+        console.error("Error adding organizer as participant:", participantError)
       }
 
       toast({
@@ -240,7 +223,7 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
       console.error("Error creating group buy:", error)
       toast({
         title: "Error",
-        description: "Failed to create group buy. Please try again.",
+        description: "Failed to create group buy",
         variant: "destructive",
       })
     } finally {
@@ -248,32 +231,18 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
     }
   }
 
-  const handleClose = () => {
-    setFormData({
-      title: "",
-      description: "",
-      category: "",
-      target_quantity: "",
-      price_individual: "",
-      price_group: "",
-      pickup_location: "",
-      deadline: "",
-    })
-    setErrors({})
-    onClose()
-  }
+  const isDeadlineValid = formData.deadline.length === 10 && validateDate(formData.deadline)
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Group Buy</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Title */}
-          <div className="space-y-2">
-            <Label htmlFor="title">Title *</Label>
+          <div>
+            <Label htmlFor="title">Title</Label>
             <Input
               id="title"
               value={formData.title}
@@ -281,60 +250,41 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
               placeholder="e.g., Bulk Rice Purchase"
               className={errors.title ? "border-red-500" : ""}
             />
-            {errors.title && (
-              <div className="flex items-center gap-1 text-sm text-red-600">
-                <AlertCircle className="h-4 w-4" />
-                {errors.title}
-              </div>
-            )}
+            {errors.title && <p className="text-sm text-red-500 mt-1">{errors.title}</p>}
           </div>
 
-          {/* Description */}
-          <div className="space-y-2">
-            <Label htmlFor="description">Description *</Label>
+          <div>
+            <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
               value={formData.description}
               onChange={(e) => handleInputChange("description", e.target.value)}
-              placeholder="Describe what you're buying and any important details..."
-              rows={3}
+              placeholder="Describe what you're buying and any details..."
               className={errors.description ? "border-red-500" : ""}
             />
-            {errors.description && (
-              <div className="flex items-center gap-1 text-sm text-red-600">
-                <AlertCircle className="h-4 w-4" />
-                {errors.description}
-              </div>
-            )}
+            {errors.description && <p className="text-sm text-red-500 mt-1">{errors.description}</p>}
           </div>
 
-          {/* Category */}
-          <div className="space-y-2">
-            <Label htmlFor="category">Category *</Label>
+          <div>
+            <Label htmlFor="category">Category</Label>
             <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
               <SelectTrigger className={errors.category ? "border-red-500" : ""}>
-                <SelectValue placeholder="Select a category" />
+                <SelectValue placeholder="Select category" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="groceries">Groceries</SelectItem>
                 <SelectItem value="electronics">Electronics</SelectItem>
                 <SelectItem value="household">Household Items</SelectItem>
                 <SelectItem value="clothing">Clothing</SelectItem>
-                <SelectItem value="books">Books & Stationery</SelectItem>
+                <SelectItem value="books">Books</SelectItem>
                 <SelectItem value="general">General</SelectItem>
               </SelectContent>
             </Select>
-            {errors.category && (
-              <div className="flex items-center gap-1 text-sm text-red-600">
-                <AlertCircle className="h-4 w-4" />
-                {errors.category}
-              </div>
-            )}
+            {errors.category && <p className="text-sm text-red-500 mt-1">{errors.category}</p>}
           </div>
 
-          {/* Target Quantity */}
-          <div className="space-y-2">
-            <Label htmlFor="target_quantity">Target Number of People *</Label>
+          <div>
+            <Label htmlFor="target_quantity">Target Number of People</Label>
             <Input
               id="target_quantity"
               type="number"
@@ -344,112 +294,85 @@ export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuy
               placeholder="e.g., 10"
               className={errors.target_quantity ? "border-red-500" : ""}
             />
-            {errors.target_quantity && (
-              <div className="flex items-center gap-1 text-sm text-red-600">
-                <AlertCircle className="h-4 w-4" />
-                {errors.target_quantity}
-              </div>
-            )}
+            {errors.target_quantity && <p className="text-sm text-red-500 mt-1">{errors.target_quantity}</p>}
           </div>
 
-          {/* Pricing */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="price_individual">Individual Price (S$) *</Label>
+            <div>
+              <Label htmlFor="price_individual">Individual Price (S$)</Label>
               <Input
                 id="price_individual"
                 type="number"
                 step="0.01"
-                min="0.01"
+                min="0"
                 value={formData.price_individual}
                 onChange={(e) => handleInputChange("price_individual", e.target.value)}
-                placeholder="e.g., 25.00"
+                placeholder="25.00"
                 className={errors.price_individual ? "border-red-500" : ""}
               />
-              {errors.price_individual && (
-                <div className="flex items-center gap-1 text-sm text-red-600">
-                  <AlertCircle className="h-4 w-4" />
-                  {errors.price_individual}
-                </div>
-              )}
+              {errors.price_individual && <p className="text-sm text-red-500 mt-1">{errors.price_individual}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="price_group">Group Price (S$) *</Label>
+            <div>
+              <Label htmlFor="price_group">Group Price (S$)</Label>
               <Input
                 id="price_group"
                 type="number"
                 step="0.01"
-                min="0.01"
+                min="0"
                 value={formData.price_group}
                 onChange={(e) => handleInputChange("price_group", e.target.value)}
-                placeholder="e.g., 20.00"
+                placeholder="20.00"
                 className={errors.price_group ? "border-red-500" : ""}
               />
-              {errors.price_group && (
-                <div className="flex items-center gap-1 text-sm text-red-600">
-                  <AlertCircle className="h-4 w-4" />
-                  {errors.price_group}
-                </div>
-              )}
+              {errors.price_group && <p className="text-sm text-red-500 mt-1">{errors.price_group}</p>}
             </div>
           </div>
 
-          {/* Pickup Location */}
-          <div className="space-y-2">
-            <Label htmlFor="pickup_location">Pickup Location *</Label>
+          <div>
+            <Label htmlFor="pickup_location">Pickup Location</Label>
             <Input
               id="pickup_location"
               value={formData.pickup_location}
               onChange={(e) => handleInputChange("pickup_location", e.target.value)}
-              placeholder="e.g., Void deck of Block 123"
+              placeholder="e.g., Block 123 Void Deck"
               className={errors.pickup_location ? "border-red-500" : ""}
             />
-            {errors.pickup_location && (
-              <div className="flex items-center gap-1 text-sm text-red-600">
-                <AlertCircle className="h-4 w-4" />
-                {errors.pickup_location}
-              </div>
-            )}
+            {errors.pickup_location && <p className="text-sm text-red-500 mt-1">{errors.pickup_location}</p>}
           </div>
 
-          {/* Deadline with auto-formatting */}
-          <div className="space-y-2">
-            <Label htmlFor="deadline">Deadline (DD/MM/YYYY) *</Label>
+          <div>
+            <Label htmlFor="deadline">Deadline (DD/MM/YYYY)</Label>
             <div className="relative">
               <Input
                 id="deadline"
                 value={formData.deadline}
                 onChange={(e) => handleInputChange("deadline", e.target.value)}
-                placeholder="DD/MM/YYYY"
+                placeholder="31/12/2024"
                 maxLength={10}
-                className={`${errors.deadline ? "border-red-500" : ""} ${
-                  formData.deadline.length === 10 && validateDate(formData.deadline) ? "border-green-500" : ""
-                }`}
+                className={`${errors.deadline ? "border-red-500" : isDeadlineValid ? "border-green-500" : ""} pr-10`}
               />
-              {formData.deadline.length === 10 && validateDate(formData.deadline) && (
-                <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
-              )}
-            </div>
-            {errors.deadline && (
-              <div className="flex items-center gap-1 text-sm text-red-600">
-                <AlertCircle className="h-4 w-4" />
-                {errors.deadline}
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                {formData.deadline.length === 10 && (
+                  <>
+                    {isDeadlineValid ? (
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4 text-red-500" />
+                    )}
+                  </>
+                )}
               </div>
-            )}
-            <p className="text-xs text-gray-500">Enter numbers only - slashes will be added automatically</p>
+            </div>
+            {errors.deadline && <p className="text-sm text-red-500 mt-1">{errors.deadline}</p>}
+            <p className="text-xs text-gray-500 mt-1">Type numbers only - slashes will be added automatically</p>
           </div>
 
-          {/* Submit Button */}
-          <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={handleClose}>
+          <div className="flex gap-3 pt-4">
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting || Object.keys(errors).length > 0}
-              className="bg-red-600 hover:bg-red-700"
-            >
+            <Button type="submit" disabled={isSubmitting} className="flex-1 bg-red-600 hover:bg-red-700">
               {isSubmitting ? "Creating..." : "Create Group Buy"}
             </Button>
           </div>

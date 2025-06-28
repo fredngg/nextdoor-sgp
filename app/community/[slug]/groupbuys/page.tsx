@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Navigation } from "../../../components/navigation"
-import { ArrowLeft, Plus, Users, Calendar, MapPin, DollarSign, Share2 } from "lucide-react"
+import { ArrowLeft, Plus, Users, Calendar, MapPin, DollarSign, Share2, LogIn } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/components/ui/use-toast"
@@ -30,6 +30,7 @@ interface GroupBuy {
   community_slug: string
   created_at: string
   organizer_name?: string
+  actual_participants?: number
 }
 
 interface Community {
@@ -54,7 +55,7 @@ export default function GroupBuysPage() {
 
   const [community, setCommunity] = useState<Community | null>(null)
   const [groupBuys, setGroupBuys] = useState<GroupBuy[]>([])
-  const [participants, setParticipants] = useState<Participant[]>([])
+  const [userParticipations, setUserParticipations] = useState<Participant[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
 
@@ -94,8 +95,14 @@ export default function GroupBuysPage() {
         return
       }
 
+      if (!groupBuysData || groupBuysData.length === 0) {
+        setGroupBuys([])
+        setLoading(false)
+        return
+      }
+
       // Fetch organizer display names separately
-      const organizerIds = [...new Set(groupBuysData?.map((gb) => gb.organizer_id) || [])]
+      const organizerIds = [...new Set(groupBuysData.map((gb) => gb.organizer_id))]
       const organizerNames: Record<string, string> = {}
 
       if (organizerIds.length > 0) {
@@ -109,23 +116,40 @@ export default function GroupBuysPage() {
         })
       }
 
-      // Combine group buys with organizer names
-      const groupBuysWithOrganizers =
-        groupBuysData?.map((groupBuy) => ({
-          ...groupBuy,
-          organizer_name: organizerNames[groupBuy.organizer_id] || "Anonymous Organizer",
-        })) || []
+      // Fetch actual participant counts for each group buy
+      const groupBuyIds = groupBuysData.map((gb) => gb.id)
+      const participantCounts: Record<string, number> = {}
 
-      setGroupBuys(groupBuysWithOrganizers)
-
-      // Fetch participants if user is logged in
-      if (user) {
+      if (groupBuyIds.length > 0) {
         const { data: participantsData } = await supabase
+          .from("group_buy_participants")
+          .select("group_buy_id")
+          .in("group_buy_id", groupBuyIds)
+
+        // Count participants per group buy
+        participantsData?.forEach((participant) => {
+          participantCounts[participant.group_buy_id] = (participantCounts[participant.group_buy_id] || 0) + 1
+        })
+      }
+
+      // Combine group buys with organizer names and actual participant counts
+      const groupBuysWithDetails = groupBuysData.map((groupBuy) => ({
+        ...groupBuy,
+        organizer_name: organizerNames[groupBuy.organizer_id] || "Anonymous Organizer",
+        actual_participants: participantCounts[groupBuy.id] || 0,
+      }))
+
+      setGroupBuys(groupBuysWithDetails)
+
+      // Fetch user's participations if logged in
+      if (user) {
+        const { data: userParticipationsData } = await supabase
           .from("group_buy_participants")
           .select("user_id, group_buy_id, quantity_requested")
           .eq("user_id", user.id)
+          .in("group_buy_id", groupBuyIds)
 
-        setParticipants(participantsData || [])
+        setUserParticipations(userParticipationsData || [])
       }
     } catch (error) {
       console.error("Error fetching data:", error)
@@ -161,26 +185,20 @@ export default function GroupBuysPage() {
       })
 
       if (error) {
-        console.error("Error joining group buy:", error)
-        toast({
-          title: "Error",
-          description: "Failed to join group buy",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // Update current quantity
-      const groupBuy = groupBuys.find((gb) => gb.id === groupBuyId)
-      if (groupBuy) {
-        const { error: updateError } = await supabase
-          .from("group_buys")
-          .update({ current_quantity: groupBuy.current_quantity + 1 })
-          .eq("id", groupBuyId)
-
-        if (updateError) {
-          console.error("Error updating quantity:", updateError)
+        if (error.code === "23505") {
+          toast({
+            title: "Already Joined",
+            description: "You're already part of this group buy",
+          })
+        } else {
+          console.error("Error joining group buy:", error)
+          toast({
+            title: "Error",
+            description: "Failed to join group buy",
+            variant: "destructive",
+          })
         }
+        return
       }
 
       toast({
@@ -188,6 +206,7 @@ export default function GroupBuysPage() {
         description: "You have successfully joined the group buy",
       })
 
+      // Refresh data to get updated counts
       fetchData()
     } catch (error) {
       console.error("Error joining group buy:", error)
@@ -199,8 +218,17 @@ export default function GroupBuysPage() {
     }
   }
 
+  const handleCreateGroupBuy = () => {
+    if (!user) {
+      // Redirect to login page
+      router.push("/login")
+      return
+    }
+    setShowCreateModal(true)
+  }
+
   const isUserParticipant = (groupBuyId: string) => {
-    return participants.some((p) => p.group_buy_id === groupBuyId)
+    return userParticipations.some((p) => p.group_buy_id === groupBuyId)
   }
 
   const isUserOrganizer = (organizerId: string) => {
@@ -287,10 +315,19 @@ export default function GroupBuysPage() {
                 <p className="text-gray-600">Save money by buying together with your neighbors</p>
               </div>
             </div>
-            {/* Create Group Buy Button - This was missing! */}
-            <Button onClick={() => setShowCreateModal(true)} className="bg-red-600 hover:bg-red-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Create Group Buy
+            {/* Create Group Buy Button - Shows different text based on login status */}
+            <Button onClick={handleCreateGroupBuy} className="bg-red-600 hover:bg-red-700">
+              {user ? (
+                <>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Group Buy
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Login to Create Group Buy
+                </>
+              )}
             </Button>
           </div>
 
@@ -300,9 +337,18 @@ export default function GroupBuysPage() {
                 <Users className="w-12 h-12 mx-auto text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No group buys yet</h3>
                 <p className="text-gray-500 mb-4">Be the first to create a group buy in this community!</p>
-                <Button onClick={() => setShowCreateModal(true)} className="bg-red-600 hover:bg-red-700">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Group Buy
+                <Button onClick={handleCreateGroupBuy} className="bg-red-600 hover:bg-red-700">
+                  {user ? (
+                    <>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Group Buy
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="w-4 h-4 mr-2" />
+                      Login to Create Group Buy
+                    </>
+                  )}
                 </Button>
               </CardContent>
             </Card>
@@ -340,7 +386,8 @@ export default function GroupBuysPage() {
                       <div className="flex items-center gap-2">
                         <Users className="w-4 h-4 text-gray-500" />
                         <span>
-                          {groupBuy.current_quantity}/{groupBuy.target_quantity} people
+                          {/* Use actual_participants instead of current_quantity */}
+                          {groupBuy.actual_participants}/{groupBuy.target_quantity} people
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -365,7 +412,24 @@ export default function GroupBuysPage() {
                       <Button asChild variant="outline" size="sm" className="flex-1 bg-transparent">
                         <Link href={`/community/${communitySlug}/groupbuy/${groupBuy.id}`}>View Details</Link>
                       </Button>
-                      {user && !isUserOrganizer(groupBuy.organizer_id) && !isUserParticipant(groupBuy.id) && (
+
+                      {/* Join button logic based on login status and participation */}
+                      {!user ? (
+                        <Button asChild size="sm" className="flex-1 bg-red-600 hover:bg-red-700">
+                          <Link href="/login">
+                            <LogIn className="w-4 h-4 mr-2" />
+                            Login to Join Group Buy
+                          </Link>
+                        </Button>
+                      ) : isUserOrganizer(groupBuy.organizer_id) ? (
+                        <Badge variant="default" className="flex-1 justify-center bg-red-600">
+                          Organizer
+                        </Badge>
+                      ) : isUserParticipant(groupBuy.id) ? (
+                        <Badge variant="secondary" className="flex-1 justify-center">
+                          Joined
+                        </Badge>
+                      ) : (
                         <Button
                           onClick={() => handleJoinGroupBuy(groupBuy.id)}
                           size="sm"
@@ -374,16 +438,6 @@ export default function GroupBuysPage() {
                           Join Group Buy
                         </Button>
                       )}
-                      {isUserParticipant(groupBuy.id) && (
-                        <Badge variant="secondary" className="flex-1 justify-center">
-                          Joined
-                        </Badge>
-                      )}
-                      {isUserOrganizer(groupBuy.organizer_id) && (
-                        <Badge variant="default" className="flex-1 justify-center bg-red-600">
-                          Organizer
-                        </Badge>
-                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -391,13 +445,15 @@ export default function GroupBuysPage() {
             </div>
           )}
 
-          {/* Create Group Buy Modal */}
-          <CreateGroupBuyModal
-            isOpen={showCreateModal}
-            onClose={() => setShowCreateModal(false)}
-            communitySlug={communitySlug}
-            onGroupBuyCreated={fetchData}
-          />
+          {/* Create Group Buy Modal - Only show if user is logged in */}
+          {user && (
+            <CreateGroupBuyModal
+              isOpen={showCreateModal}
+              onClose={() => setShowCreateModal(false)}
+              communitySlug={communitySlug}
+              onGroupBuyCreated={fetchData}
+            />
+          )}
         </div>
       </div>
     </>
