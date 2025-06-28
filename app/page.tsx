@@ -308,7 +308,7 @@ export default function NextDoorSG() {
               </h1>
               <p className="text-base text-gray-500 max-w-2xl mx-auto leading-relaxed px-4">
                 NextDoor.sg helps you find and join real communities based on your HDB or condo address. Ask for help,
-                share updates, borrow something, or just say hello!
+                share updates, borrow something, or just say hello! 👋
               </p>
             </div>
 
@@ -483,8 +483,8 @@ export default function NextDoorSG() {
               <FeatureSection
                 title="Join Real Communities by Address"
                 description="Find your exact HDB or condo community just by entering your postal code."
-                imageSrc="/feature-postal-search.png"
-                imageAlt="Singapore HDB building with map pin and postal code search interface"
+                imageSrc="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/1.jpg-YVycUu9L5bTzrw0EbhhJNK3U3oi2ZX.png"
+                imageAlt="Woman with smartphone standing in front of Singapore HDB buildings with location markers"
                 reverse={false}
               />
             </div>
@@ -494,8 +494,8 @@ export default function NextDoorSG() {
               <FeatureSection
                 title="Get Help, Lend a Hand, or Just Say Hi"
                 description="Ask neighbors for help, share updates, or simply introduce yourself. Every block is a community."
-                imageSrc="/feature-neighbors-helping.png"
-                imageAlt="Neighbors helping each other and chatting in HDB corridor"
+                imageSrc="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/2.jpg-T7o82GkY85rKLpMwOntlgLrRX8Zj3i.jpeg"
+                imageAlt="Neighbors helping each other in HDB corridor - man with package, woman waving, and another neighbor"
                 reverse={true}
               />
             </div>
@@ -505,8 +505,8 @@ export default function NextDoorSG() {
               <FeatureSection
                 title="Stay Updated with Real-Time Conversations"
                 description="See what's happening in your block — from lost pets to community events, all in one place."
-                imageSrc="/feature-social-feed.png"
-                imageAlt="Social feed with community updates and notifications"
+                imageSrc="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/3.jpg-VgdKkNyHKZiKwYT7C98QN4eamg6S9d.png"
+                imageAlt="Two neighbors using phones in evening HDB setting with community notification bubbles"
                 reverse={false}
               />
             </div>
