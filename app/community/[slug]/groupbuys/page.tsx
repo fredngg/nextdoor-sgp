@@ -572,31 +572,35 @@ export default function GroupBuysPage() {
       <div className="min-h-screen bg-gray-50 pt-16">
         <div className="container mx-auto px-4 py-8">
           {/* Header with Create Group Buy button */}
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => router.back()}>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to {community?.name || "Community"}
-              </Button>
-              <div>
-                <h1 className="text-3xl font-bold">Group Buys</h1>
-                <p className="text-gray-600">Save money by buying together with your neighbors</p>
-              </div>
-            </div>
-            {/* Create Group Buy Button - Shows different text based on login status */}
-            <Button onClick={handleCreateGroupBuy} className="bg-red-600 hover:bg-red-700">
-              {user ? (
-                <>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Group Buy
-                </>
-              ) : (
-                <>
-                  <LogIn className="w-4 h-4 mr-2" />
-                  Login to Create Group Buy
-                </>
-              )}
+          <div className="space-y-4 mb-6">
+            {/* Back button - full width on mobile */}
+            <Button variant="ghost" onClick={() => router.back()} className="w-fit">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              <span className="truncate max-w-[200px] sm:max-w-none">Back to {community?.name || "Community"}</span>
             </Button>
+
+            {/* Title and Create Button - stacked on mobile, side by side on desktop */}
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+              <div className="space-y-1">
+                <h1 className="text-2xl sm:text-3xl font-bold">Group Buys</h1>
+                <p className="text-sm sm:text-base text-gray-600">Save money by buying together with your neighbors</p>
+              </div>
+
+              {/* Create Group Buy Button - full width on mobile, auto width on desktop */}
+              <Button onClick={handleCreateGroupBuy} className="bg-red-600 hover:bg-red-700 w-full sm:w-auto shrink-0">
+                {user ? (
+                  <>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Group Buy
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-4 h-4 mr-2" />
+                    Login to Create Group Buy
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
           {/* Tabs for Active and Completed Group Buys */}
