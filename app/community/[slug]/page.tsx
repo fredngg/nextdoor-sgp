@@ -24,6 +24,31 @@ interface Community {
   created_at: string
 }
 
+interface Comment {
+  id: string
+  post_id: string
+  author: string
+  body: string
+  created_at: string
+  user_id?: string
+  vote_count?: number
+  user_vote?: "up" | "down" | null
+}
+
+interface Post {
+  id: string
+  community_slug: string
+  author: string
+  title: string
+  body: string
+  tag: string
+  created_at: string
+  comments?: Comment[]
+  user_id?: string
+  vote_count?: number
+  user_vote?: "up" | "down" | null
+}
+
 export default function CommunityPage() {
   const params = useParams()
   const { user } = useAuth()
@@ -34,10 +59,14 @@ export default function CommunityPage() {
   const [community, setCommunity] = useState<Community | null>(null)
   const [loading, setLoading] = useState(true)
   const [isMember, setIsMember] = useState(false)
+  const [posts, setPosts] = useState<Post[]>([])
+  const [postsLoading, setPostsLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState("All")
 
   useEffect(() => {
     if (communitySlug) {
       fetchCommunity()
+      fetchPosts()
     }
   }, [communitySlug])
 
@@ -97,6 +126,144 @@ export default function CommunityPage() {
     }
   }
 
+  const fetchPosts = async () => {
+    try {
+      setPostsLoading(true)
+
+      // Fetch posts with vote data
+      const { data: postsData, error: postsError } = await supabase
+        .from("posts")
+        .select(`
+          *,
+          votes:post_votes(vote_type),
+          user_vote:post_votes!inner(vote_type)
+        `)
+        .eq("community_slug", communitySlug)
+        .eq("user_vote.user_id", user?.id || "")
+        .order("created_at", { ascending: false })
+
+      if (postsError && postsError.code !== "PGRST116") {
+        throw postsError
+      }
+
+      // Fetch posts without user vote data if user is not logged in
+      const { data: allPostsData, error: allPostsError } = await supabase
+        .from("posts")
+        .select(`
+          *,
+          votes:post_votes(vote_type)
+        `)
+        .eq("community_slug", communitySlug)
+        .order("created_at", { ascending: false })
+
+      if (allPostsError) {
+        throw allPostsError
+      }
+
+      // Process posts with vote counts and user votes
+      const processedPosts = (allPostsData || []).map((post) => {
+        const votes = post.votes || []
+        const upvotes = votes.filter((v: any) => v.vote_type === "up").length
+        const downvotes = votes.filter((v: any) => v.vote_type === "down").length
+        const voteCount = upvotes - downvotes
+
+        // Find user's vote if logged in
+        const userVoteData = user ? postsData?.find((p) => p.id === post.id) : null
+        const userVote = userVoteData?.user_vote?.[0]?.vote_type || null
+
+        return {
+          ...post,
+          vote_count: voteCount,
+          user_vote: userVote,
+          comments: [], // Will be loaded when needed
+        }
+      })
+
+      // Fetch comments for all posts
+      const { data: commentsData, error: commentsError } = await supabase
+        .from("comments")
+        .select(`
+          *,
+          votes:comment_votes(vote_type),
+          user_vote:comment_votes!inner(vote_type)
+        `)
+        .in(
+          "post_id",
+          processedPosts.map((p) => p.id),
+        )
+        .eq("user_vote.user_id", user?.id || "")
+        .order("created_at", { ascending: true })
+
+      if (commentsError && commentsError.code !== "PGRST116") {
+        console.error("Error fetching comments:", commentsError)
+      }
+
+      // Fetch all comments without user vote data
+      const { data: allCommentsData, error: allCommentsError } = await supabase
+        .from("comments")
+        .select(`
+          *,
+          votes:comment_votes(vote_type)
+        `)
+        .in(
+          "post_id",
+          processedPosts.map((p) => p.id),
+        )
+        .order("created_at", { ascending: true })
+
+      if (allCommentsError) {
+        console.error("Error fetching all comments:", allCommentsError)
+      }
+
+      // Process comments with vote data
+      const processedComments = (allCommentsData || []).map((comment) => {
+        const votes = comment.votes || []
+        const upvotes = votes.filter((v: any) => v.vote_type === "up").length
+        const downvotes = votes.filter((v: any) => v.vote_type === "down").length
+        const voteCount = upvotes - downvotes
+
+        // Find user's vote if logged in
+        const userVoteData = user ? commentsData?.find((c) => c.id === comment.id) : null
+        const userVote = userVoteData?.user_vote?.[0]?.vote_type || null
+
+        return {
+          ...comment,
+          vote_count: voteCount,
+          user_vote: userVote,
+        }
+      })
+
+      // Group comments by post_id
+      const commentsByPost = processedComments.reduce(
+        (acc, comment) => {
+          if (!acc[comment.post_id]) {
+            acc[comment.post_id] = []
+          }
+          acc[comment.post_id].push(comment)
+          return acc
+        },
+        {} as Record<string, Comment[]>,
+      )
+
+      // Add comments to posts
+      const postsWithComments = processedPosts.map((post) => ({
+        ...post,
+        comments: commentsByPost[post.id] || [],
+      }))
+
+      setPosts(postsWithComments)
+    } catch (error) {
+      console.error("Error fetching posts:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load posts",
+        variant: "destructive",
+      })
+    } finally {
+      setPostsLoading(false)
+    }
+  }
+
   const checkMembership = async () => {
     if (!user || !community) return
 
@@ -150,6 +317,23 @@ export default function CommunityPage() {
         variant: "destructive",
       })
     }
+  }
+
+  const handlePostCreated = (newPost: Post) => {
+    setPosts((prevPosts) => [newPost, ...prevPosts])
+  }
+
+  const handleCommentAdded = (postId: string, newComment: Comment) => {
+    setPosts((prevPosts) =>
+      prevPosts.map((post) =>
+        post.id === postId
+          ? {
+              ...post,
+              comments: [...(post.comments || []), newComment],
+            }
+          : post,
+      ),
+    )
   }
 
   if (loading) {
@@ -239,7 +423,22 @@ export default function CommunityPage() {
 
                 {/* Post Feed with proper padding */}
                 <div className="p-6 pt-4">
-                  <PostFeed communitySlug={communitySlug} />
+                  {postsLoading ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-32 w-full" />
+                      <Skeleton className="h-32 w-full" />
+                      <Skeleton className="h-32 w-full" />
+                    </div>
+                  ) : (
+                    <PostFeed
+                      posts={posts}
+                      communitySlug={communitySlug}
+                      onPostCreated={handlePostCreated}
+                      onCommentAdded={handleCommentAdded}
+                      activeTab={activeTab}
+                      onTabChange={setActiveTab}
+                    />
+                  )}
                 </div>
               </div>
             </div>
