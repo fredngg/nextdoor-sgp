@@ -149,12 +149,12 @@ export function CreateGroupBuyModal({ isOpen, onClose, onGroupBuyCreated, commun
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="food">Food & Beverages</SelectItem>
+                  <SelectItem value="groceries">Food & Beverages</SelectItem>
                   <SelectItem value="household">Household Items</SelectItem>
                   <SelectItem value="electronics">Electronics</SelectItem>
-                  <SelectItem value="health">Health & Beauty</SelectItem>
                   <SelectItem value="clothing">Clothing & Accessories</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  <SelectItem value="books">Books</SelectItem>
+                  <SelectItem value="general">General</SelectItem>
                 </SelectContent>
               </Select>
             </div>
