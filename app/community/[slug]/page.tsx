@@ -51,10 +51,15 @@ export default function CommunityPage() {
     try {
       setLoading(true)
 
-      const { data, error } = await supabase.from("communities").select("*").eq("slug", communitySlug).single()
+      // Get community data
+      const { data: communityData, error: communityError } = await supabase
+        .from("communities")
+        .select("*")
+        .eq("slug", communitySlug)
+        .single()
 
-      if (error) {
-        console.error("Error fetching community:", error)
+      if (communityError) {
+        console.error("Error fetching community:", communityError)
         toast({
           title: "Error",
           description: "Failed to load community",
@@ -63,7 +68,23 @@ export default function CommunityPage() {
         return
       }
 
-      setCommunity(data)
+      // Get member count
+      const { count: memberCount, error: countError } = await supabase
+        .from("community_members")
+        .select("*", { count: "exact", head: true })
+        .eq("community_slug", communitySlug)
+
+      if (countError) {
+        console.error("Error fetching member count:", countError)
+      }
+
+      // Update community data with current member count
+      const updatedCommunity = {
+        ...communityData,
+        member_count: memberCount || 0,
+      }
+
+      setCommunity(updatedCommunity)
     } catch (error) {
       console.error("Error fetching community:", error)
       toast({
@@ -83,7 +104,7 @@ export default function CommunityPage() {
       const { data, error } = await supabase
         .from("community_members")
         .select("id")
-        .eq("community_id", community.id)
+        .eq("community_slug", communitySlug)
         .eq("user_id", user.id)
         .single()
 
@@ -98,7 +119,7 @@ export default function CommunityPage() {
 
     try {
       const { error } = await supabase.from("community_members").insert({
-        community_id: community.id,
+        community_slug: communitySlug,
         user_id: user.id,
       })
 
@@ -108,11 +129,14 @@ export default function CommunityPage() {
             title: "Already a Member",
             description: "You're already a member of this community",
           })
+          setIsMember(true)
         } else {
           throw error
         }
       } else {
         setIsMember(true)
+        // Update local member count
+        setCommunity((prev) => (prev ? { ...prev, member_count: prev.member_count + 1 } : null))
         toast({
           title: "Joined Successfully!",
           description: `Welcome to ${community.name}`,
@@ -222,7 +246,12 @@ export default function CommunityPage() {
 
             {/* Sidebar */}
             <div className="lg:col-span-1">
-              <CommunitySidebar community={community} />
+              <CommunitySidebar
+                address={community.name}
+                area={community.area}
+                region={community.region}
+                communitySlug={communitySlug}
+              />
             </div>
           </div>
         </div>

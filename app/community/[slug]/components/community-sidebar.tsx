@@ -184,7 +184,7 @@ export function CommunitySidebar({ address, area, region, communitySlug, onShowM
             hasJoined ? (
               <Button
                 variant="outline"
-                className="w-full border-red-200 text-red-600 hover:bg-red-50"
+                className="w-full border-red-200 text-red-600 hover:bg-red-50 bg-transparent"
                 onClick={handleLeaveCommunity}
                 disabled={isJoining || loading}
               >
@@ -218,21 +218,21 @@ export function CommunitySidebar({ address, area, region, communitySlug, onShowM
           <CardTitle className="text-lg">Useful Links</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Button variant="outline" className="w-full justify-start" asChild>
+          <Button variant="outline" className="w-full justify-start bg-transparent" asChild>
             <a href="#" target="_blank" rel="noopener noreferrer">
               <ExternalLink className="h-4 w-4 mr-2" />
               Town Council
             </a>
           </Button>
 
-          <Button variant="outline" className="w-full justify-start" asChild>
+          <Button variant="outline" className="w-full justify-start bg-transparent" asChild>
             <a href="#" target="_blank" rel="noopener noreferrer">
               <Recycle className="h-4 w-4 mr-2" />
               Recycling Schedule
             </a>
           </Button>
 
-          <Button variant="outline" className="w-full justify-start" asChild>
+          <Button variant="outline" className="w-full justify-start bg-transparent" asChild>
             <a href="#" target="_blank" rel="noopener noreferrer">
               <Calendar className="h-4 w-4 mr-2" />
               Community Events
