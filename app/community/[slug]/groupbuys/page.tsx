@@ -3,31 +3,15 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import {
-  ArrowLeft,
-  Calendar,
-  MapPin,
-  Users,
-  Plus,
-  ExternalLink,
-  Clock,
-  ShoppingCart,
-  Send,
-  MessageCircle,
-  Copy,
-  Check,
-  Crown,
-} from "lucide-react"
+import { Navigation } from "../../../components/navigation"
+import { ArrowLeft, Plus, Users, Calendar, MapPin, DollarSign, Share2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/components/ui/use-toast"
 import { CreateGroupBuyModal } from "../components/create-group-buy-modal"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 
 interface GroupBuy {
@@ -45,7 +29,7 @@ interface GroupBuy {
   organizer_id: string
   community_slug: string
   created_at: string
-  organizer_display_name?: string
+  organizer_name?: string
 }
 
 interface Community {
@@ -56,61 +40,25 @@ interface Community {
   region: string
 }
 
+interface Participant {
+  user_id: string
+  group_buy_id: string
+  quantity_requested: number
+}
+
 export default function GroupBuysPage() {
   const params = useParams()
   const router = useRouter()
   const { user } = useAuth()
   const { toast } = useToast()
 
-  const communitySlug = params.slug as string
-
   const [community, setCommunity] = useState<Community | null>(null)
-  const [activeGroupBuys, setActiveGroupBuys] = useState<GroupBuy[]>([])
-  const [completedGroupBuys, setCompletedGroupBuys] = useState<GroupBuy[]>([])
+  const [groupBuys, setGroupBuys] = useState<GroupBuy[]>([])
+  const [participants, setParticipants] = useState<Participant[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [copiedGroupBuy, setCopiedGroupBuy] = useState<string | null>(null)
-  const [participationStatus, setParticipationStatus] = useState<
-    Record<string, { isParticipant: boolean; isOrganizer: boolean }>
-  >({})
 
-  useEffect(() => {
-    if (communitySlug) {
-      fetchData()
-    }
-  }, [communitySlug])
-
-  const checkParticipationStatus = async (groupBuys: GroupBuy[]) => {
-    if (!user) return
-
-    const statusMap: Record<string, { isParticipant: boolean; isOrganizer: boolean }> = {}
-
-    for (const groupBuy of groupBuys) {
-      // Check if user is organizer
-      const isOrganizer = user.id === groupBuy.organizer_id
-
-      // Check if user is participant
-      let isParticipant = false
-      if (!isOrganizer) {
-        try {
-          const { data, error } = await supabase
-            .from("group_buy_participants")
-            .select("id")
-            .eq("group_buy_id", groupBuy.id)
-            .eq("user_id", user.id)
-            .single()
-
-          isParticipant = !!data && !error
-        } catch (error) {
-          isParticipant = false
-        }
-      }
-
-      statusMap[groupBuy.id] = { isParticipant, isOrganizer }
-    }
-
-    setParticipationStatus(statusMap)
-  }
+  const communitySlug = params.slug as string
 
   const fetchData = async () => {
     try {
@@ -129,7 +77,7 @@ export default function GroupBuysPage() {
         setCommunity(communityData)
       }
 
-      // Fetch all group buys for this community - separate query to avoid relationship issues
+      // Fetch group buys
       const { data: groupBuysData, error: groupBuysError } = await supabase
         .from("group_buys")
         .select("*")
@@ -146,47 +94,39 @@ export default function GroupBuysPage() {
         return
       }
 
-      // Fetch organizer display names separately to avoid relationship issues
-      const groupBuysWithOrganizers = await Promise.all(
-        (groupBuysData || []).map(async (groupBuy) => {
-          try {
-            const { data: profileData, error: profileError } = await supabase
-              .from("user_profiles")
-              .select("display_name")
-              .eq("user_id", groupBuy.organizer_id)
-              .single()
+      // Fetch organizer display names separately
+      const organizerIds = [...new Set(groupBuysData?.map((gb) => gb.organizer_id) || [])]
+      const organizerNames: Record<string, string> = {}
 
-            return {
-              ...groupBuy,
-              organizer_display_name: profileData?.display_name || "Anonymous Organizer",
-            }
-          } catch (error) {
-            return {
-              ...groupBuy,
-              organizer_display_name: "Anonymous Organizer",
-            }
-          }
-        }),
-      )
+      if (organizerIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("user_profiles")
+          .select("user_id, display_name")
+          .in("user_id", organizerIds)
 
-      // Separate active and completed group buys
-      const now = new Date()
-      const active: GroupBuy[] = []
-      const completed: GroupBuy[] = []
+        profilesData?.forEach((profile) => {
+          organizerNames[profile.user_id] = profile.display_name
+        })
+      }
 
-      groupBuysWithOrganizers.forEach((groupBuy) => {
-        const deadline = new Date(groupBuy.deadline)
-        if (deadline > now && groupBuy.status !== "completed") {
-          active.push(groupBuy)
-        } else {
-          completed.push(groupBuy)
-        }
-      })
+      // Combine group buys with organizer names
+      const groupBuysWithOrganizers =
+        groupBuysData?.map((groupBuy) => ({
+          ...groupBuy,
+          organizer_name: organizerNames[groupBuy.organizer_id] || "Anonymous Organizer",
+        })) || []
 
-      setActiveGroupBuys(active)
-      setCompletedGroupBuys(completed)
+      setGroupBuys(groupBuysWithOrganizers)
 
-      await checkParticipationStatus([...active, ...completed])
+      // Fetch participants if user is logged in
+      if (user) {
+        const { data: participantsData } = await supabase
+          .from("group_buy_participants")
+          .select("user_id, group_buy_id, quantity_requested")
+          .eq("user_id", user.id)
+
+        setParticipants(participantsData || [])
+      }
     } catch (error) {
       console.error("Error fetching data:", error)
       toast({
@@ -199,11 +139,15 @@ export default function GroupBuysPage() {
     }
   }
 
-  const handleJoinGroupBuy = async (groupBuy: GroupBuy) => {
+  useEffect(() => {
+    fetchData()
+  }, [communitySlug, user])
+
+  const handleJoinGroupBuy = async (groupBuyId: string) => {
     if (!user) {
       toast({
-        title: "Login Required",
-        description: "Please log in to join group buys",
+        title: "Authentication Required",
+        description: "Please log in to join a group buy",
         variant: "destructive",
       })
       return
@@ -211,38 +155,40 @@ export default function GroupBuysPage() {
 
     try {
       const { error } = await supabase.from("group_buy_participants").insert({
-        group_buy_id: groupBuy.id,
+        group_buy_id: groupBuyId,
         user_id: user.id,
         quantity_requested: 1,
       })
 
       if (error) {
-        if (error.code === "23505") {
-          toast({
-            title: "Already Joined",
-            description: "You're already part of this group buy",
-          })
-        } else {
-          throw error
-        }
-      } else {
-        // Update the current quantity
+        console.error("Error joining group buy:", error)
+        toast({
+          title: "Error",
+          description: "Failed to join group buy",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Update current quantity
+      const groupBuy = groupBuys.find((gb) => gb.id === groupBuyId)
+      if (groupBuy) {
         const { error: updateError } = await supabase
           .from("group_buys")
           .update({ current_quantity: groupBuy.current_quantity + 1 })
-          .eq("id", groupBuy.id)
+          .eq("id", groupBuyId)
 
         if (updateError) {
           console.error("Error updating quantity:", updateError)
         }
-
-        toast({
-          title: "Joined Successfully!",
-          description: "You've joined the group buy",
-        })
-        // Refresh data
-        await fetchData()
       }
+
+      toast({
+        title: "Joined Group Buy!",
+        description: "You have successfully joined the group buy",
+      })
+
+      fetchData()
     } catch (error) {
       console.error("Error joining group buy:", error)
       toast({
@@ -253,412 +199,207 @@ export default function GroupBuysPage() {
     }
   }
 
-  const handleLeaveGroupBuy = async (groupBuy: GroupBuy) => {
-    if (!user) return
+  const isUserParticipant = (groupBuyId: string) => {
+    return participants.some((p) => p.group_buy_id === groupBuyId)
+  }
 
-    try {
-      const { error } = await supabase
-        .from("group_buy_participants")
-        .delete()
-        .eq("group_buy_id", groupBuy.id)
-        .eq("user_id", user.id)
+  const isUserOrganizer = (organizerId: string) => {
+    return user?.id === organizerId
+  }
 
-      if (error) {
-        throw error
-      }
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-GB")
+  }
 
-      // Update the current quantity
-      const { error: updateError } = await supabase
-        .from("group_buys")
-        .update({ current_quantity: Math.max(0, groupBuy.current_quantity - 1) })
-        .eq("id", groupBuy.id)
+  const getCategoryColor = (category: string) => {
+    const colors: Record<string, string> = {
+      groceries: "bg-green-100 text-green-800",
+      electronics: "bg-blue-100 text-blue-800",
+      household: "bg-purple-100 text-purple-800",
+      clothing: "bg-pink-100 text-pink-800",
+      books: "bg-orange-100 text-orange-800",
+      general: "bg-gray-100 text-gray-800",
+    }
+    return colors[category] || colors.general
+  }
 
-      if (updateError) {
-        console.error("Error updating quantity:", updateError)
-      }
+  const shareGroupBuy = (groupBuy: GroupBuy, type: "telegram" | "generic") => {
+    const url = `${window.location.origin}/community/${communitySlug}/groupbuy/${groupBuy.id}`
+    const text = `Check out this group buy: ${groupBuy.title}`
 
+    if (type === "telegram") {
+      const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`
+      window.open(telegramUrl, "_blank")
+    } else {
+      navigator.clipboard.writeText(url)
       toast({
-        title: "Left Group Buy",
-        description: "You've left the group buy",
-      })
-      // Refresh data
-      await fetchData()
-    } catch (error) {
-      console.error("Error leaving group buy:", error)
-      toast({
-        title: "Error",
-        description: "Failed to leave group buy",
-        variant: "destructive",
+        title: "Link Copied!",
+        description: "Group buy link has been copied to clipboard",
       })
     }
-  }
-
-  const generateShareMessage = (groupBuy: GroupBuy) => {
-    const baseUrl = window.location.origin
-    const groupBuyUrl = `${baseUrl}/community/${communitySlug}/groupbuy/${groupBuy.id}`
-
-    const savings = groupBuy.price_individual - groupBuy.price_group
-    const savingsPercent = Math.round((savings / groupBuy.price_individual) * 100)
-
-    return `🛒 *Group Buy Alert!*
-
-📦 *${groupBuy.title}*
-${groupBuy.description}
-
-💰 *Pricing:*
-• Individual: S$${groupBuy.price_individual}
-• Group Price: S$${groupBuy.price_group}
-• *Save S$${savings.toFixed(2)} (${savingsPercent}% off!)*
-
-👥 *Target:* ${groupBuy.target_quantity} people
-📍 *Pickup:* ${groupBuy.pickup_location}
-⏰ *Deadline:* ${new Date(groupBuy.deadline).toLocaleDateString()}
-
-Join now: ${groupBuyUrl}`
-  }
-
-  const handleTelegramShare = (groupBuy: GroupBuy) => {
-    const message = generateShareMessage(groupBuy)
-    const encodedMessage = encodeURIComponent(message)
-    const telegramLink = `tg://msg?text=${encodedMessage}`
-
-    window.location.href = telegramLink
-    toast({
-      title: "Opening Telegram",
-      description: "Telegram should open with the group buy message ready to share!",
-    })
-  }
-
-  const handleWhatsAppShare = (groupBuy: GroupBuy) => {
-    const message = generateShareMessage(groupBuy)
-    const encodedMessage = encodeURIComponent(message)
-    const whatsappUrl = `https://wa.me/?text=${encodedMessage}`
-
-    window.open(whatsappUrl, "_blank")
-    toast({
-      title: "Opening WhatsApp",
-      description: "WhatsApp should open with the group buy message ready to share!",
-    })
-  }
-
-  const handleCopyLink = async (groupBuy: GroupBuy) => {
-    const message = generateShareMessage(groupBuy)
-
-    try {
-      await navigator.clipboard.writeText(message)
-      setCopiedGroupBuy(groupBuy.id)
-      toast({
-        title: "Copied to Clipboard!",
-        description: "Share message copied. Perfect for WhatsApp, SMS, or any messaging app!",
-      })
-
-      setTimeout(() => setCopiedGroupBuy(null), 2000)
-    } catch (error) {
-      const baseUrl = window.location.origin
-      const groupBuyUrl = `${baseUrl}/community/${communitySlug}/groupbuy/${groupBuy.id}`
-
-      try {
-        await navigator.clipboard.writeText(groupBuyUrl)
-        toast({
-          title: "Link Copied!",
-          description: "Group buy link copied to clipboard",
-        })
-      } catch (fallbackError) {
-        toast({
-          title: "Copy Failed",
-          description: "Unable to copy to clipboard. Please copy the URL manually.",
-          variant: "destructive",
-        })
-      }
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "bg-yellow-100 text-yellow-800"
-      case "successful":
-        return "bg-green-100 text-green-800"
-      case "completed":
-        return "bg-blue-100 text-blue-800"
-      case "expired":
-        return "bg-gray-100 text-gray-800"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
-  }
-
-  const formatDeadline = (deadline: string) => {
-    const date = new Date(deadline)
-    const now = new Date()
-    const diffTime = date.getTime() - now.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-    if (diffDays < 0) return "Expired"
-    if (diffDays === 0) return "Today"
-    if (diffDays === 1) return "1 day left"
-    return `${diffDays} days left`
-  }
-
-  const calculateProgress = (current: number, target: number) => {
-    return Math.min((current / target) * 100, 100)
-  }
-
-  const calculateSavings = (individual: number, group: number) => {
-    return individual - group
-  }
-
-  const renderGroupBuyCard = (groupBuy: GroupBuy, isCompleted = false) => {
-    const status = participationStatus[groupBuy.id] || { isParticipant: false, isOrganizer: false }
-    const { isParticipant, isOrganizer } = status
-
-    return (
-      <Card key={groupBuy.id} className={`border-l-4 ${isCompleted ? "border-l-gray-400" : "border-l-red-500"}`}>
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex-1">
-              <h4 className="font-semibold text-lg text-gray-900 mb-1">{groupBuy.title}</h4>
-              <p className="text-gray-600 text-sm mb-2 line-clamp-2">{groupBuy.description}</p>
-              <div className="flex items-center gap-4 text-sm text-gray-500">
-                <span className="flex items-center gap-1">
-                  <Users className="h-4 w-4" />
-                  {groupBuy.organizer_display_name || "Anonymous Organizer"}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  {new Date(groupBuy.deadline).toLocaleDateString()}
-                </span>
-                {!isCompleted && (
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-4 w-4" />
-                    {formatDeadline(groupBuy.deadline)}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {/* Share Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-blue-600 border-blue-200 hover:bg-blue-50 bg-transparent"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={() => handleTelegramShare(groupBuy)} className="cursor-pointer">
-                    <Send className="h-4 w-4 mr-2 text-blue-500" />
-                    Share on Telegram
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleWhatsAppShare(groupBuy)} className="cursor-pointer">
-                    <MessageCircle className="h-4 w-4 mr-2 text-green-500" />
-                    Share on WhatsApp
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleCopyLink(groupBuy)} className="cursor-pointer">
-                    {copiedGroupBuy === groupBuy.id ? (
-                      <Check className="h-4 w-4 mr-2 text-green-500" />
-                    ) : (
-                      <Copy className="h-4 w-4 mr-2 text-gray-500" />
-                    )}
-                    {copiedGroupBuy === groupBuy.id ? "Copied!" : "Copy Message"}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <Badge className={getStatusColor(groupBuy.status)}>
-                {isCompleted ? "Completed" : groupBuy.status.charAt(0).toUpperCase() + groupBuy.status.slice(1)}
-              </Badge>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {/* Progress */}
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Progress</span>
-                <span>
-                  {groupBuy.current_quantity}/{groupBuy.target_quantity} people
-                </span>
-              </div>
-              <Progress
-                value={calculateProgress(groupBuy.current_quantity, groupBuy.target_quantity)}
-                className="h-2"
-              />
-            </div>
-
-            {/* Pricing */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="text-sm">
-                  <span className="text-gray-500">Individual: </span>
-                  <span className="line-through text-gray-400">S${groupBuy.price_individual}</span>
-                </div>
-                <div className="text-sm">
-                  <span className="text-gray-500">Group: </span>
-                  <span className="font-semibold text-green-600">S${groupBuy.price_group}</span>
-                </div>
-                <div className="text-sm">
-                  <span className="text-green-600 font-medium">
-                    Save S${calculateSavings(groupBuy.price_individual, groupBuy.price_group)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Pickup Location */}
-            <div className="flex items-center gap-1 text-sm text-gray-600">
-              <MapPin className="h-4 w-4" />
-              <span>{groupBuy.pickup_location}</span>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-2 pt-2">
-              <Link href={`/community/${communitySlug}/groupbuy/${groupBuy.id}`} className="flex-1">
-                <Button variant="outline" size="sm" className="w-full bg-transparent">
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  View Details
-                </Button>
-              </Link>
-              {!isCompleted && (
-                <div className="flex-1">
-                  {!user ? (
-                    <Link href="/login" className="w-full">
-                      <Button size="sm" className="w-full bg-red-600 hover:bg-red-700">
-                        Login to Join
-                      </Button>
-                    </Link>
-                  ) : isOrganizer ? (
-                    <Button size="sm" className="w-full bg-purple-600 hover:bg-purple-700" disabled>
-                      <Crown className="h-4 w-4 mr-2" />
-                      Organizer
-                    </Button>
-                  ) : isParticipant ? (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="w-full"
-                      onClick={() => handleLeaveGroupBuy(groupBuy)}
-                    >
-                      Leave Group Buy
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      className="w-full bg-red-600 hover:bg-red-700"
-                      onClick={() => handleJoinGroupBuy(groupBuy)}
-                    >
-                      Join Group Buy
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    )
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 pt-16">
-        <div className="container mx-auto px-4 py-6 max-w-6xl">
-          <Skeleton className="h-10 w-32 mb-6" />
-          <Skeleton className="h-12 w-full mb-6" />
-          <div className="space-y-4">
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-40 w-full" />
+      <>
+        <Navigation />
+        <div className="min-h-screen bg-gray-50 pt-16">
+          <div className="container mx-auto px-4 py-8">
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-3xl font-bold">Group Buys</h1>
+            </div>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {[...Array(6)].map((_, i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardHeader>
+                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="h-3 bg-gray-200 rounded"></div>
+                      <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      </>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-16">
-      <div className="container mx-auto px-4 py-6 max-w-6xl">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => router.back()}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to {community?.name || "Community"}
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Group Buys</h1>
-              <p className="text-gray-600">Save money by buying together with your neighbors</p>
+    <>
+      <Navigation />
+      <div className="min-h-screen bg-gray-50 pt-16">
+        <div className="container mx-auto px-4 py-8">
+          {/* Header with Create Group Buy button */}
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" onClick={() => router.back()}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to {community?.name || "Community"}
+              </Button>
+              <div>
+                <h1 className="text-3xl font-bold">Group Buys</h1>
+                <p className="text-gray-600">Save money by buying together with your neighbors</p>
+              </div>
             </div>
+            {/* Create Group Buy Button - This was missing! */}
+            <Button onClick={() => setShowCreateModal(true)} className="bg-red-600 hover:bg-red-700">
+              <Plus className="w-4 h-4 mr-2" />
+              Create Group Buy
+            </Button>
           </div>
-          <Button onClick={() => setShowCreateModal(true)} className="bg-red-600 hover:bg-red-700">
-            <Plus className="h-4 w-4 mr-2" />
-            Create Group Buy
-          </Button>
+
+          {groupBuys.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-12">
+                <Users className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No group buys yet</h3>
+                <p className="text-gray-500 mb-4">Be the first to create a group buy in this community!</p>
+                <Button onClick={() => setShowCreateModal(true)} className="bg-red-600 hover:bg-red-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Group Buy
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {groupBuys.map((groupBuy) => (
+                <Card key={groupBuy.id} className="hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="text-lg">{groupBuy.title}</CardTitle>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <Share2 className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem onClick={() => shareGroupBuy(groupBuy, "telegram")}>
+                            Share on Telegram
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => shareGroupBuy(groupBuy, "generic")}>
+                            Copy Link
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    <Badge className={getCategoryColor(groupBuy.category)} variant="secondary">
+                      {groupBuy.category}
+                    </Badge>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm text-gray-600 line-clamp-2">{groupBuy.description}</p>
+
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-gray-500" />
+                        <span>
+                          {groupBuy.current_quantity}/{groupBuy.target_quantity} people
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="w-4 h-4 text-gray-500" />
+                        <span>
+                          S${groupBuy.price_individual} → S${groupBuy.price_group}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-gray-500" />
+                        <span className="truncate">{groupBuy.pickup_location}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-gray-500" />
+                        <span>Deadline: {formatDate(groupBuy.deadline)}</span>
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-gray-500">Organized by {groupBuy.organizer_name}</div>
+
+                    <div className="flex gap-2">
+                      <Button asChild variant="outline" size="sm" className="flex-1 bg-transparent">
+                        <Link href={`/community/${communitySlug}/groupbuy/${groupBuy.id}`}>View Details</Link>
+                      </Button>
+                      {user && !isUserOrganizer(groupBuy.organizer_id) && !isUserParticipant(groupBuy.id) && (
+                        <Button
+                          onClick={() => handleJoinGroupBuy(groupBuy.id)}
+                          size="sm"
+                          className="flex-1 bg-red-600 hover:bg-red-700"
+                        >
+                          Join Group Buy
+                        </Button>
+                      )}
+                      {isUserParticipant(groupBuy.id) && (
+                        <Badge variant="secondary" className="flex-1 justify-center">
+                          Joined
+                        </Badge>
+                      )}
+                      {isUserOrganizer(groupBuy.organizer_id) && (
+                        <Badge variant="default" className="flex-1 justify-center bg-red-600">
+                          Organizer
+                        </Badge>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Create Group Buy Modal */}
+          <CreateGroupBuyModal
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            communitySlug={communitySlug}
+            onGroupBuyCreated={fetchData}
+          />
         </div>
-
-        {/* Tabs for Active and Completed */}
-        <Tabs defaultValue="active" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="active" className="flex items-center gap-2">
-              <ShoppingCart className="h-4 w-4" />
-              Active ({activeGroupBuys.length})
-            </TabsTrigger>
-            <TabsTrigger value="completed" className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Completed ({completedGroupBuys.length})
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Active Group Buys */}
-          <TabsContent value="active">
-            {activeGroupBuys.length === 0 ? (
-              <Card>
-                <CardContent className="text-center py-12">
-                  <ShoppingCart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No Active Group Buys</h3>
-                  <p className="text-gray-600 mb-6">Be the first to start a group buy in your community!</p>
-                  <Button onClick={() => setShowCreateModal(true)} className="bg-red-600 hover:bg-red-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Group Buy
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {activeGroupBuys.map((groupBuy) => renderGroupBuyCard(groupBuy, false))}
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Completed Group Buys */}
-          <TabsContent value="completed">
-            {completedGroupBuys.length === 0 ? (
-              <Card>
-                <CardContent className="text-center py-12">
-                  <Clock className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No Completed Group Buys</h3>
-                  <p className="text-gray-600">Completed group buys will appear here after their deadline passes.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {completedGroupBuys.map((groupBuy) => renderGroupBuyCard(groupBuy, true))}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
       </div>
-
-      {/* Create Group Buy Modal */}
-      <CreateGroupBuyModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        communitySlug={communitySlug}
-        onGroupBuyCreated={fetchData}
-      />
-    </div>
+    </>
   )
 }
