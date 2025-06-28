@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useToast } from "@/components/ui/use-toast" // Import useToast hook
+import { useToast } from "@/components/ui/use-toast"
 
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -23,7 +23,7 @@ interface CreateGroupBuyModalProps {
 
 export function CreateGroupBuyModal({ isOpen, onClose, communitySlug, onGroupBuyCreated }: CreateGroupBuyModalProps) {
   const { user } = useAuth()
-  const { toast } = useToast() // Declare useToast hook
+  const { toast } = useToast()
 
   const [formData, setFormData] = useState({
     title: "",

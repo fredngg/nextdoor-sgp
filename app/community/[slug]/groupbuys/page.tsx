@@ -6,12 +6,28 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Navigation } from "../../../components/navigation"
-import { ArrowLeft, Plus, Users, Calendar, MapPin, DollarSign, Share2, LogIn } from "lucide-react"
+import { ArrowLeft, Plus, Users, Calendar, MapPin, DollarSign, Share2, LogIn, MoreVertical, Trash2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/components/ui/use-toast"
 import { CreateGroupBuyModal } from "../components/create-group-buy-modal"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import Link from "next/link"
 
 interface GroupBuy {
@@ -58,6 +74,8 @@ export default function GroupBuysPage() {
   const [userParticipations, setUserParticipations] = useState<Participant[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [deleteGroupBuyId, setDeleteGroupBuyId] = useState<string | null>(null)
+  const [deletingGroupBuy, setDeletingGroupBuy] = useState(false)
 
   const communitySlug = params.slug as string
 
@@ -218,6 +236,68 @@ export default function GroupBuysPage() {
     }
   }
 
+  const handleDeleteGroupBuy = async () => {
+    if (!deleteGroupBuyId || !user) return
+
+    setDeletingGroupBuy(true)
+    try {
+      // First delete all participants
+      const { error: participantsError } = await supabase
+        .from("group_buy_participants")
+        .delete()
+        .eq("group_buy_id", deleteGroupBuyId)
+
+      if (participantsError) {
+        console.error("Error deleting participants:", participantsError)
+      }
+
+      // Then delete all comments
+      const { error: commentsError } = await supabase
+        .from("group_buy_comments")
+        .delete()
+        .eq("group_buy_id", deleteGroupBuyId)
+
+      if (commentsError) {
+        console.error("Error deleting comments:", commentsError)
+      }
+
+      // Finally delete the group buy
+      const { error: groupBuyError } = await supabase
+        .from("group_buys")
+        .delete()
+        .eq("id", deleteGroupBuyId)
+        .eq("organizer_id", user.id) // Extra security check
+
+      if (groupBuyError) {
+        console.error("Error deleting group buy:", groupBuyError)
+        toast({
+          title: "Error",
+          description: "Failed to delete group buy",
+          variant: "destructive",
+        })
+        return
+      }
+
+      toast({
+        title: "Group Buy Deleted",
+        description: "Your group buy has been deleted successfully",
+      })
+
+      // Refresh data
+      fetchData()
+    } catch (error) {
+      console.error("Error deleting group buy:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete group buy",
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingGroupBuy(false)
+      setDeleteGroupBuyId(null)
+    }
+  }
+
   const handleCreateGroupBuy = () => {
     if (!user) {
       // Redirect to login page
@@ -362,16 +442,31 @@ export default function GroupBuysPage() {
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm">
-                            <Share2 className="w-4 h-4" />
+                            <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent>
+                        <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => shareGroupBuy(groupBuy, "telegram")}>
+                            <Share2 className="w-4 h-4 mr-2" />
                             Share on Telegram
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => shareGroupBuy(groupBuy, "generic")}>
+                            <Share2 className="w-4 h-4 mr-2" />
                             Copy Link
                           </DropdownMenuItem>
+                          {/* Delete option - only show for organizer */}
+                          {user && isUserOrganizer(groupBuy.organizer_id) && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => setDeleteGroupBuyId(groupBuy.id)}
+                                className="text-red-600 focus:text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete Group Buy
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -454,6 +549,29 @@ export default function GroupBuysPage() {
               onGroupBuyCreated={fetchData}
             />
           )}
+
+          {/* Delete Confirmation Dialog */}
+          <AlertDialog open={!!deleteGroupBuyId} onOpenChange={() => setDeleteGroupBuyId(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Group Buy</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete this group buy? This action cannot be undone and will remove all
+                  participants and comments.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteGroupBuy}
+                  disabled={deletingGroupBuy}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  {deletingGroupBuy ? "Deleting..." : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
     </>

@@ -10,104 +10,144 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { supabase } from "@/lib/supabase"
+import { useToast } from "@/components/ui/use-toast"
 import { AlertCircle, CheckCircle, Mail } from "lucide-react"
 import Link from "next/link"
 
 export default function LoginPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [email, setEmail] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [message, setMessage] = useState("")
-  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
   const [emailError, setEmailError] = useState("")
 
   // Email validation
   const validateEmail = (email: string) => {
-    if (!email) {
-      return "Email is required"
-    }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      return "Please enter a valid email address"
-    }
-    return ""
+    return emailRegex.test(email)
   }
 
   const handleEmailChange = (value: string) => {
     setEmail(value)
-    // Clear errors when user starts typing
-    if (error) setError("")
-    if (emailError) setEmailError("")
 
-    // Real-time validation
-    if (value) {
-      const validation = validateEmail(value)
-      setEmailError(validation)
+    // Clear error when user starts typing
+    if (emailError) {
+      setEmailError("")
+    }
+
+    // Validate email format
+    if (value && !validateEmail(value)) {
+      setEmailError("Please enter a valid email address")
     }
   }
 
-  const isEmailValid = email && !validateEmail(email)
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Validate email before submission
-    const validation = validateEmail(email)
-    if (validation) {
-      setEmailError(validation)
+    if (!email) {
+      setEmailError("Email is required")
       return
     }
 
-    setIsLoading(true)
-    setError("")
-    setMessage("")
+    if (!validateEmail(email)) {
+      setEmailError("Please enter a valid email address")
+      return
+    }
 
+    setLoading(true)
     try {
       const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
+        email,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       })
 
       if (error) {
-        setError(error.message)
+        console.error("Login error:", error)
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive",
+        })
       } else {
-        setMessage("Check your email for the login link!")
+        setEmailSent(true)
+        toast({
+          title: "Check your email",
+          description: "We've sent you a login link",
+        })
       }
     } catch (error) {
-      setError("An unexpected error occurred. Please try again.")
+      console.error("Login error:", error)
+      toast({
+        title: "Error",
+        description: "Failed to send login email",
+        variant: "destructive",
+      })
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
+  const isEmailValid = email && validateEmail(email)
+
+  if (emailSent) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
+              <CheckCircle className="h-6 w-6 text-green-600" />
+            </div>
+            <CardTitle>Check your email</CardTitle>
+            <CardDescription>
+              We've sent a login link to <strong>{email}</strong>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert>
+              <Mail className="h-4 w-4" />
+              <AlertDescription>Click the link in your email to sign in. You can close this tab.</AlertDescription>
+            </Alert>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEmailSent(false)
+                setEmail("")
+              }}
+              className="w-full mt-4"
+            >
+              Use different email
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Welcome to nextdoor.sg</CardTitle>
-          <CardDescription>Enter your email to get started</CardDescription>
+          <CardTitle className="text-2xl">Welcome back</CardTitle>
+          <CardDescription>Enter your email to sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="email">Email address</Label>
-              <div className="relative mt-1">
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <div className="relative">
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => handleEmailChange(e.target.value)}
                   placeholder="Enter your email"
-                  className={`pr-10 ${
-                    emailError
-                      ? "border-red-500 focus:border-red-500"
-                      : isEmailValid
-                        ? "border-green-500 focus:border-green-500"
-                        : ""
+                  className={`${
+                    emailError ? "border-red-500 pr-10" : isEmailValid ? "border-green-500 pr-10" : "pr-10"
                   }`}
-                  disabled={isLoading}
+                  disabled={loading}
                 />
                 <div className="absolute inset-y-0 right-0 flex items-center pr-3">
                   {email && (
@@ -123,39 +163,27 @@ export default function LoginPage() {
                   )}
                 </div>
               </div>
-              {emailError && <p className="text-sm text-red-500 mt-1">{emailError}</p>}
+              {emailError && (
+                <p className="text-sm text-red-600 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {emailError}
+                </p>
+              )}
             </div>
 
-            <Button type="submit" className="w-full bg-red-600 hover:bg-red-700" disabled={isLoading || !isEmailValid}>
-              {isLoading ? "Sending..." : "Send Magic Link"}
+            <Button type="submit" className="w-full bg-red-600 hover:bg-red-700" disabled={loading || !isEmailValid}>
+              {loading ? "Sending..." : "Send login link"}
             </Button>
           </form>
 
-          {message && (
-            <Alert className="mt-4 border-green-200 bg-green-50">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-800">{message}</AlertDescription>
-            </Alert>
-          )}
-
-          {error && (
-            <Alert className="mt-4 border-red-200 bg-red-50">
-              <AlertCircle className="h-4 w-4 text-red-600" />
-              <AlertDescription className="text-red-800">{error}</AlertDescription>
-            </Alert>
-          )}
-
           <div className="mt-6 text-center text-sm text-gray-600">
-            <p>
-              By continuing, you agree to our{" "}
-              <Link href="/terms" className="text-red-600 hover:text-red-500">
-                Terms of Service
-              </Link>{" "}
-              and{" "}
-              <Link href="/privacy" className="text-red-600 hover:text-red-500">
-                Privacy Policy
-              </Link>
-            </p>
+            <p>Don't have an account? You'll be able to create one after clicking the login link.</p>
+          </div>
+
+          <div className="mt-4 text-center">
+            <Link href="/" className="text-sm text-red-600 hover:text-red-700">
+              ← Back to home
+            </Link>
           </div>
         </CardContent>
       </Card>
