@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { MessageCircle, Send, LogIn } from "lucide-react"
+import { MessageCircle, Send, LogIn, Trash2 } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import {
@@ -73,6 +73,7 @@ function PostCard({
   const [showComments, setShowComments] = useState(false)
   const [commentBody, setCommentBody] = useState("")
   const [submittingComment, setSubmittingComment] = useState(false)
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null)
   const { user } = useAuth()
   const { toast } = useToast()
 
@@ -143,6 +144,46 @@ function PostCard({
       })
     } finally {
       setSubmittingComment(false)
+    }
+  }
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!user) return
+
+    // Show confirmation dialog
+    const confirmed = window.confirm("Are you sure you want to delete this comment? This action cannot be undone.")
+    if (!confirmed) return
+
+    try {
+      setDeletingCommentId(commentId)
+
+      // Delete comment from database
+      const { error } = await supabase.from("comments").delete().eq("id", commentId).eq("user_id", user.id) // Security: only allow users to delete their own comments
+
+      if (error) {
+        throw new Error(`Failed to delete comment: ${error.message}`)
+      }
+
+      // Update local state by removing the deleted comment
+      const updatedComments = (post.comments || []).filter((comment) => comment.id !== commentId)
+
+      // We need to update the parent component's state
+      // For now, we'll trigger a page refresh to show the updated comments
+      window.location.reload()
+
+      toast({
+        title: "Comment deleted",
+        description: "Your comment has been successfully removed.",
+      })
+    } catch (err) {
+      console.error("Error deleting comment:", err)
+      toast({
+        title: "Delete failed",
+        description: "We couldn't delete your comment. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingCommentId(null)
     }
   }
 
@@ -217,6 +258,23 @@ function PostCard({
                         <span className="font-medium text-sm">{comment.author}</span>
                         <span className="text-gray-500 text-xs">•</span>
                         <span className="text-gray-500 text-xs">{formatDate(comment.created_at)}</span>
+                        {/* Delete button - only show for comment author */}
+                        {user && comment.user_id === user.id && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 ml-auto text-gray-400 hover:text-red-600"
+                            onClick={() => handleDeleteComment(comment.id)}
+                            disabled={deletingCommentId === comment.id}
+                            title="Delete comment"
+                          >
+                            {deletingCommentId === comment.id ? (
+                              <span className="animate-spin text-xs">⟳</span>
+                            ) : (
+                              <Trash2 className="h-3 w-3" />
+                            )}
+                          </Button>
+                        )}
                       </div>
                       <p className="text-sm text-gray-700 mb-2">{comment.body}</p>
 
