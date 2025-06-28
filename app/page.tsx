@@ -1,5 +1,5 @@
 "use client"
-import { MapPin, Building, Users, Globe } from "lucide-react"
+import { MapPin, Building, Users, Globe, Search, X } from "lucide-react"
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
@@ -106,6 +106,12 @@ export default function NextDoorSG() {
   const [error, setError] = useState("")
   const [showHero, setShowHero] = useState(true)
 
+  // New search functionality for results page
+  const [newSearchCode, setNewSearchCode] = useState("")
+  const [newSearchLoading, setNewSearchLoading] = useState(false)
+  const [newSearchError, setNewSearchError] = useState("")
+  const [showNewSearch, setShowNewSearch] = useState(false)
+
   // Effect to handle hero visibility based on search results
   useEffect(() => {
     console.log("👁️ DEBUG [page.tsx]: Hero visibility effect triggered:", {
@@ -123,6 +129,125 @@ export default function NextDoorSG() {
     }
   }, [locationData])
 
+  const performSearch = async (searchPostalCode: string) => {
+    console.log("🔍 DEBUG [page.tsx]: Starting search for postal code:", searchPostalCode.trim())
+
+    // Validate postal code format
+    if (!/^\d{6}$/.test(searchPostalCode.trim())) {
+      throw new Error("Please enter a valid 6-digit Singapore postal code")
+    }
+
+    console.log("✅ DEBUG [page.tsx]: Postal code validation passed:", searchPostalCode.trim())
+
+    // First, get postal sector information
+    const postalSector = await getPostalSectorFromCode(searchPostalCode)
+    if (!postalSector) {
+      throw new Error("Invalid postal code. Please check and try again.")
+    }
+
+    console.log("✅ DEBUG [page.tsx]: Postal sector lookup successful:", {
+      sector: postalSector.sector_code,
+      district: postalSector.district_name,
+      region: postalSector.region,
+      postalCode: searchPostalCode,
+    })
+
+    // Then fetch detailed address information from OneMap via our API route
+    console.log("🌐 DEBUG [page.tsx]: About to call OneMap API via /api/onemap-search")
+    console.log("🌐 DEBUG [page.tsx]: API URL:", `/api/onemap-search?postalCode=${searchPostalCode}`)
+
+    const response = await fetch(`/api/onemap-search?postalCode=${searchPostalCode}`)
+
+    console.log("📡 DEBUG [page.tsx]: OneMap API response received:", {
+      status: response.status,
+      ok: response.ok,
+      statusText: response.statusText,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || `Failed to fetch location data. Status: ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    const resultsCount = data.results?.length || 0
+
+    console.log("📊 DEBUG [page.tsx]: OneMap response data:", {
+      resultsCount: resultsCount,
+      firstResult: data.results?.[0] || null,
+      rawData: data,
+    })
+
+    if (!data.results || data.results.length === 0) {
+      throw new Error("We couldn't find detailed information for this postal code. Please try again.")
+    }
+
+    const result = data.results[0]
+    const block = result.BLK_NO || ""
+    const street = result.ROAD_NAME || "Unknown Street"
+    const roadName = result.ROAD_NAME || ""
+    const fullAddress = result.ADDRESS || "Unknown Address"
+    const buildingName = result.BUILDING || ""
+    const latitude = Number.parseFloat(result.LATITUDE)
+    const longitude = Number.parseFloat(result.LONGITUDE)
+
+    console.log("🏠 DEBUG [page.tsx]: Extracted address data:", {
+      block,
+      street,
+      roadName,
+      fullAddress,
+      buildingName,
+      latitude,
+      longitude,
+      coordinates: `${latitude}, ${longitude}`,
+    })
+
+    // Classify the address type
+    const addressClassification = classifyAddress(buildingName, fullAddress, street)
+
+    console.log("🏷️ DEBUG [page.tsx]: Address classification result:", {
+      isCommercial: addressClassification.isCommercial,
+      isHDB: addressClassification.isHDB,
+      isCondo: addressClassification.isCondo,
+      buildingType: addressClassification.buildingType,
+      confidence: addressClassification.confidence,
+    })
+
+    // Generate community information based on postal sector
+    const community = generateCommunityName(
+      postalSector,
+      block,
+      buildingName,
+      roadName,
+      addressClassification.isCommercial,
+    )
+    const communitySlug = generateCommunitySlug(community)
+
+    console.log("🏘️ DEBUG [page.tsx]: Community generation complete:", {
+      community,
+      communitySlug,
+      region: postalSector.region,
+      district: postalSector.district_name,
+    })
+
+    return {
+      postalCode: searchPostalCode,
+      block,
+      street,
+      area: postalSector.district_name,
+      community,
+      communitySlug,
+      region: postalSector.region,
+      latitude,
+      longitude,
+      fullAddress,
+      buildingName,
+      addressClassification,
+      postalSector,
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!postalCode.trim()) return
@@ -131,143 +256,11 @@ export default function NextDoorSG() {
     setError("")
     setLocationData(null)
 
-    console.log("🔍 DEBUG [page.tsx]: Starting search for postal code:", postalCode.trim())
     console.log("🔍 DEBUG [page.tsx]: Form submission triggered")
 
     try {
-      // Validate postal code format
-      if (!/^\d{6}$/.test(postalCode.trim())) {
-        setError("Please enter a valid 6-digit Singapore postal code")
-        return
-      }
-
-      console.log("✅ DEBUG [page.tsx]: Postal code validation passed:", postalCode.trim())
-
-      console.log("Searching for postal code:", postalCode)
-
-      // First, get postal sector information
-      const postalSector = await getPostalSectorFromCode(postalCode)
-      if (!postalSector) {
-        setError("Invalid postal code. Please check and try again.")
-        return
-      }
-
-      console.log("✅ DEBUG [page.tsx]: Postal sector lookup successful:", {
-        sector: postalSector.sector_code,
-        district: postalSector.district_name,
-        region: postalSector.region,
-        postalCode: postalCode,
-      })
-
-      // Then fetch detailed address information from OneMap via our API route
-      console.log("🌐 DEBUG [page.tsx]: About to call OneMap API via /api/onemap-search")
-      console.log("🌐 DEBUG [page.tsx]: API URL:", `/api/onemap-search?postalCode=${postalCode}`)
-
-      const response = await fetch(`/api/onemap-search?postalCode=${postalCode}`)
-
-      console.log("📡 DEBUG [page.tsx]: OneMap API response received:", {
-        status: response.status,
-        ok: response.ok,
-        statusText: response.statusText,
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || `Failed to fetch location data. Status: ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      const resultsCount = data.results?.length || 0
-
-      console.log("📊 DEBUG [page.tsx]: OneMap response data:", {
-        resultsCount: resultsCount,
-        firstResult: data.results?.[0] || null,
-        rawData: data,
-      })
-
-      if (!data.results || data.results.length === 0) {
-        setError("We couldn't find detailed information for this postal code. Please try again.")
-        return
-      }
-
-      const result = data.results[0]
-      const block = result.BLK_NO || ""
-      const street = result.ROAD_NAME || "Unknown Street"
-      const roadName = result.ROAD_NAME || ""
-      const fullAddress = result.ADDRESS || "Unknown Address"
-      const buildingName = result.BUILDING || ""
-      const latitude = Number.parseFloat(result.LATITUDE)
-      const longitude = Number.parseFloat(result.LONGITUDE)
-
-      console.log("🏠 DEBUG [page.tsx]: Extracted address data:", {
-        block,
-        street,
-        roadName,
-        fullAddress,
-        buildingName,
-        latitude,
-        longitude,
-        coordinates: `${latitude}, ${longitude}`,
-      })
-
-      // Classify the address type
-      const addressClassification = classifyAddress(buildingName, fullAddress, street)
-
-      console.log("🏷️ DEBUG [page.tsx]: Address classification result:", {
-        isCommercial: addressClassification.isCommercial,
-        isHDB: addressClassification.isHDB,
-        isCondo: addressClassification.isCondo,
-        buildingType: addressClassification.buildingType,
-        confidence: addressClassification.confidence,
-      })
-
-      // Generate community information based on postal sector
-      const community = generateCommunityName(
-        postalSector,
-        block,
-        buildingName,
-        roadName,
-        addressClassification.isCommercial,
-      )
-      const communitySlug = generateCommunitySlug(community)
-
-      console.log("🏘️ DEBUG [page.tsx]: Community generation complete:", {
-        community,
-        communitySlug,
-        region: postalSector.region,
-        district: postalSector.district_name,
-      })
-
-      console.log("✅ DEBUG [page.tsx]: Final location data object:", {
-        postalCode,
-        block,
-        street,
-        area: postalSector.district_name,
-        community,
-        communitySlug,
-        region: postalSector.region,
-        fullAddress,
-        buildingName,
-        addressClassification,
-        coordinates: { latitude, longitude },
-      })
-
-      setLocationData({
-        postalCode,
-        block,
-        street,
-        area: postalSector.district_name,
-        community,
-        communitySlug,
-        region: postalSector.region,
-        latitude,
-        longitude,
-        fullAddress,
-        buildingName,
-        addressClassification,
-        postalSector,
-      })
+      const result = await performSearch(postalCode)
+      setLocationData(result)
     } catch (err) {
       console.error("❌ DEBUG [page.tsx]: Error in handleSubmit:", {
         error: err,
@@ -282,11 +275,47 @@ export default function NextDoorSG() {
     }
   }
 
+  const handleNewSearch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newSearchCode.trim()) return
+
+    setNewSearchLoading(true)
+    setNewSearchError("")
+
+    console.log("🔍 DEBUG [page.tsx]: New search submission triggered for:", newSearchCode.trim())
+
+    try {
+      const result = await performSearch(newSearchCode)
+      setLocationData(result)
+      setPostalCode(newSearchCode) // Update main postal code
+      setNewSearchCode("") // Clear new search input
+      setShowNewSearch(false) // Hide new search form
+    } catch (err) {
+      console.error("❌ DEBUG [page.tsx]: Error in handleNewSearch:", {
+        error: err,
+        message: err instanceof Error ? err.message : "Unknown error",
+        postalCode: newSearchCode.trim(),
+      })
+      setNewSearchError(err instanceof Error ? err.message : "Something went wrong. Please try again.")
+    } finally {
+      setNewSearchLoading(false)
+    }
+  }
+
   const handleClearSearch = () => {
     console.log("🧹 DEBUG [page.tsx]: Clearing search results and resetting form")
     setPostalCode("")
     setLocationData(null)
     setError("")
+    setNewSearchCode("")
+    setNewSearchError("")
+    setShowNewSearch(false)
+  }
+
+  const toggleNewSearch = () => {
+    setShowNewSearch(!showNewSearch)
+    setNewSearchCode("")
+    setNewSearchError("")
   }
 
   return (
@@ -396,6 +425,77 @@ export default function NextDoorSG() {
             {/* Results with background container */}
             {locationData && (
               <div className="max-w-2xl mx-auto mt-6 p-6 bg-white rounded-lg shadow-sm">
+                {/* Search Again Section */}
+                <div className="mb-6 pb-6 border-b border-gray-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">
+                        Search Results for {locationData.postalCode}
+                      </h2>
+                      <p className="text-sm text-gray-600">Want to search for a different postal code?</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={toggleNewSearch}
+                      className="flex items-center gap-2 bg-transparent"
+                    >
+                      {showNewSearch ? (
+                        <>
+                          <X className="h-4 w-4" />
+                          Cancel
+                        </>
+                      ) : (
+                        <>
+                          <Search className="h-4 w-4" />
+                          New Search
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* New Search Form */}
+                  {showNewSearch && (
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <form onSubmit={handleNewSearch} className="space-y-4">
+                        <div className="space-y-2">
+                          <label htmlFor="new-postal-code" className="text-sm font-medium text-gray-700 block">
+                            Enter new postal code
+                          </label>
+                          <div className="flex gap-3">
+                            <input
+                              id="new-postal-code"
+                              type="text"
+                              placeholder="e.g., 123456"
+                              value={newSearchCode}
+                              onChange={(e) => setNewSearchCode(e.target.value)}
+                              maxLength={6}
+                              pattern="[0-9]{6}"
+                              className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200"
+                              aria-label="New Postal Code"
+                            />
+                            <Button
+                              type="submit"
+                              disabled={newSearchLoading || !newSearchCode.trim()}
+                              className="bg-red-600 hover:bg-red-700 px-6"
+                            >
+                              {newSearchLoading ? "Searching..." : "Search"}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* New Search Error Message */}
+                        {newSearchError && (
+                          <Alert variant="destructive">
+                            <AlertDescription>{newSearchError}</AlertDescription>
+                          </Alert>
+                        )}
+                      </form>
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-6">
                   {/* Section 1: Community or Commercial Fallback */}
                   <div>
