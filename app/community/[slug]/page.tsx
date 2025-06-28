@@ -79,12 +79,12 @@ export default function CommunityPage() {
     try {
       setLoading(true)
 
-      // Get community data
+      // First, try to fetch the community
       const { data: communityData, error: communityError } = await supabase
         .from("communities")
         .select("*")
         .eq("slug", communitySlug)
-        .single()
+        .maybeSingle()
 
       if (communityError) {
         console.error("Error fetching community:", communityError)
@@ -94,6 +94,69 @@ export default function CommunityPage() {
           variant: "destructive",
         })
         return
+      }
+
+      let selectedCommunity: Community
+
+      if (!communityData) {
+        // Community doesn't exist, create it
+        const name = communitySlug
+          .split("-")
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ")
+
+        const area = communitySlug.split("-")[0].charAt(0).toUpperCase() + communitySlug.split("-")[0].slice(1)
+
+        const { data: newCommunity, error: createError } = await supabase
+          .from("communities")
+          .insert({
+            name,
+            slug: communitySlug,
+            area,
+            region: "Singapore",
+            member_count: 0,
+          })
+          .select()
+          .maybeSingle()
+
+        if (createError) {
+          console.error("Error creating community:", createError)
+          toast({
+            title: "Error",
+            description: "Failed to create community",
+            variant: "destructive",
+          })
+          return
+        }
+
+        if (!newCommunity) {
+          // Race condition: someone else created it, try fetching again
+          const { data: refetchedCommunity, error: refetchError } = await supabase
+            .from("communities")
+            .select("*")
+            .eq("slug", communitySlug)
+            .maybeSingle()
+
+          if (refetchError || !refetchedCommunity) {
+            console.error("Error refetching community after race condition:", refetchError)
+            toast({
+              title: "Error",
+              description: "Failed to load community",
+              variant: "destructive",
+            })
+            return
+          }
+
+          selectedCommunity = refetchedCommunity
+        } else {
+          selectedCommunity = newCommunity
+          toast({
+            title: "Community Created",
+            description: `Welcome to ${name}! You're the first member.`,
+          })
+        }
+      } else {
+        selectedCommunity = communityData
       }
 
       // Get member count
@@ -108,7 +171,7 @@ export default function CommunityPage() {
 
       // Update community data with current member count
       const updatedCommunity = {
-        ...communityData,
+        ...selectedCommunity,
         member_count: memberCount || 0,
       }
 

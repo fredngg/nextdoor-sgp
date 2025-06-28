@@ -146,7 +146,7 @@ export default function GroupBuyPage() {
         .select("*")
         .eq("id", groupBuyId)
         .eq("community_slug", communitySlug)
-        .single()
+        .single(); 
 
       console.log("📊 Group buy query result:", { groupBuyData, groupBuyError })
 
