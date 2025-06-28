@@ -6,12 +6,11 @@ import { Navigation } from "../../components/navigation"
 import { CommunityFeatures } from "./components/community-features"
 import { PostFeed } from "./components/post-feed"
 import { CommunitySidebar } from "./components/community-sidebar"
-import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/components/ui/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
 
 interface Community {
   id: string
@@ -333,39 +332,24 @@ export default function CommunityPage() {
               {/* Community Features */}
               <CommunityFeatures communitySlug={communitySlug} />
 
-              {/* Community Feed Section with proper spacing */}
-              <div className="bg-white rounded-lg shadow-sm border">
-                <div className="p-6 border-b border-gray-200">
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
-                    {isMember && (
-                      <Button className="bg-red-600 hover:bg-red-700">
-                        <Plus className="h-4 w-4 mr-2" />
-                        New Post
-                      </Button>
-                    )}
+              {/* Post Feed */}
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                {postsLoading ? (
+                  <div className="space-y-4">
+                    <Skeleton className="h-32 w-full" />
+                    <Skeleton className="h-32 w-full" />
+                    <Skeleton className="h-32 w-full" />
                   </div>
-                </div>
-
-                {/* Post Feed with proper padding */}
-                <div className="p-6 pt-4">
-                  {postsLoading ? (
-                    <div className="space-y-4">
-                      <Skeleton className="h-32 w-full" />
-                      <Skeleton className="h-32 w-full" />
-                      <Skeleton className="h-32 w-full" />
-                    </div>
-                  ) : (
-                    <PostFeed
-                      posts={posts}
-                      communitySlug={communitySlug}
-                      onPostCreated={handlePostCreated}
-                      onCommentAdded={handleCommentAdded}
-                      activeTab={activeTab}
-                      onTabChange={setActiveTab}
-                    />
-                  )}
-                </div>
+                ) : (
+                  <PostFeed
+                    posts={posts}
+                    communitySlug={communitySlug}
+                    onPostCreated={handlePostCreated}
+                    onCommentAdded={handleCommentAdded}
+                    activeTab={activeTab}
+                    onTabChange={setActiveTab}
+                  />
+                )}
               </div>
             </div>
 

@@ -80,10 +80,7 @@ function PostCard({
     const colors: Record<string, string> = {
       Announcement: "bg-blue-100 text-blue-800",
       "Buy/Sell": "bg-green-100 text-green-800",
-      Notice: "bg-yellow-100 text-yellow-800",
       "Lost & Found": "bg-red-100 text-red-800",
-      Question: "bg-purple-100 text-purple-800",
-      Food: "bg-orange-100 text-orange-800",
       General: "bg-gray-100 text-gray-800",
     }
     return colors[tag] || "bg-gray-100 text-gray-800"
@@ -421,10 +418,7 @@ export function PostFeed({
                         <SelectItem value="General">General</SelectItem>
                         <SelectItem value="Announcement">Announcement</SelectItem>
                         <SelectItem value="Buy/Sell">Buy/Sell</SelectItem>
-                        <SelectItem value="Notice">Notice</SelectItem>
                         <SelectItem value="Lost & Found">Lost & Found</SelectItem>
-                        <SelectItem value="Question">Question</SelectItem>
-                        <SelectItem value="Food">Food</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
