@@ -373,8 +373,8 @@ export default function NextDoorSG() {
                 <div className="order-1 lg:order-2">
                   <div className="relative">
                     <img
-                      src="/hero-illustration.png"
-                      alt="Diverse community of families and neighbors in Singapore HDB estate with colorful buildings and playground"
+                      src="/new-hero-illustration.jpg"
+                      alt="Vibrant illustration of Singapore HDB community with families and neighbors interacting in a playground area, featuring colorful apartment buildings, children playing, and a welcoming neighborhood atmosphere"
                       className="w-full h-[500px] object-cover object-center rounded-2xl shadow-lg"
                     />
                   </div>
