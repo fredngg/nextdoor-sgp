@@ -84,16 +84,16 @@ function PostCard({
 
   const getTagColor = (tag: string) => {
     const colors: Record<string, string> = {
-      Announcement: "bg-blue-100 text-blue-800",
-      "Buy/Sell": "bg-green-100 text-green-800",
-      "Lost & Found": "bg-red-100 text-red-800",
-      General: "bg-gray-100 text-gray-800",
-      RenoTalk: "bg-orange-100 text-orange-800",
-      "Fur Kids": "bg-purple-100 text-purple-800",
-      Sports: "bg-indigo-100 text-indigo-800",
-      "Events/Parties": "bg-pink-100 text-pink-800",
+      Announcement: "bg-red-100 text-red-800 border-red-200",
+      "Buy/Sell": "bg-green-100 text-green-800 border-green-200",
+      "Lost & Found": "bg-orange-100 text-orange-800 border-orange-200",
+      General: "bg-blue-100 text-blue-800 border-blue-200",
+      RenoTalk: "bg-amber-100 text-amber-800 border-amber-200",
+      "Fur Kids": "bg-purple-100 text-purple-800 border-purple-200",
+      Sports: "bg-indigo-100 text-indigo-800 border-indigo-200",
+      "Events/Parties": "bg-pink-100 text-pink-800 border-pink-200",
     }
-    return colors[tag] || "bg-gray-100 text-gray-800"
+    return colors[tag] || "bg-gray-100 text-gray-800 border-gray-200"
   }
 
   const formatDate = (dateString: string) => {
@@ -295,7 +295,7 @@ function PostCard({
         <h3 className="text-lg font-semibold text-gray-900 mt-2">{post.title}</h3>
 
         <div className="flex gap-2 mt-2">
-          <Badge variant="secondary" className={`text-xs ${getTagColor(post.tag)}`}>
+          <Badge variant="outline" className={`text-xs ${getTagColor(post.tag)}`}>
             {post.tag}
           </Badge>
         </div>
@@ -559,14 +559,54 @@ export function PostFeed({
                         <SelectValue placeholder="Select a tag" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="General">General</SelectItem>
-                        <SelectItem value="Announcement">Announcement</SelectItem>
-                        <SelectItem value="Buy/Sell">Buy/Sell</SelectItem>
-                        <SelectItem value="Lost & Found">Lost & Found</SelectItem>
-                        <SelectItem value="RenoTalk">RenoTalk</SelectItem>
-                        <SelectItem value="Fur Kids">Fur Kids</SelectItem>
-                        <SelectItem value="Sports">Sports</SelectItem>
-                        <SelectItem value="Events/Parties">Events/Parties</SelectItem>
+                        <SelectItem value="General">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                            General
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="Announcement">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                            Announcement
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="Buy/Sell">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                            Buy/Sell
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="Lost & Found">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                            Lost & Found
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="RenoTalk">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                            RenoTalk
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="Fur Kids">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                            Fur Kids
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="Sports">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
+                            Sports
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="Events/Parties">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-pink-500"></div>
+                            Events/Parties
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
