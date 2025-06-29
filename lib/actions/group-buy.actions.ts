@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase"
 
 interface CreateGroupBuyData {
   title: string
@@ -15,8 +15,6 @@ interface CreateGroupBuyData {
 
 export async function createGroupBuy(formData: CreateGroupBuyData, communitySlug: string, organizerId: string) {
   try {
-    const supabase = createClient()
-
     const { data: groupBuy, error: groupBuyError } = await supabase
       .from("group_buys")
       .insert({

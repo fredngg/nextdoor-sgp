@@ -4,18 +4,24 @@ import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { supabase } from "@/lib/supabase"
 import { formatDistanceToNow } from "date-fns"
-import { Calendar, MessageSquare, FileText, Users } from "lucide-react"
+import { MessageCircle, FileText, Users, CheckCircle } from "lucide-react"
+
+interface UserProfileModalProps {
+  isOpen: boolean
+  onClose: () => void
+  userId: string
+  displayName: string
+}
 
 interface UserProfile {
   id: string
-  display_name: string | null
-  email: string | null
+  display_name: string
+  email?: string
   created_at: string
-  email_verified: boolean
 }
 
 interface UserActivity {
@@ -32,7 +38,6 @@ interface UserActivity {
     id: string
     body: string
     created_at: string
-    post_id: string
     post_title?: string
     community_slug: string
     community_name?: string
@@ -44,13 +49,7 @@ interface UserActivity {
   }>
 }
 
-interface UserProfileModalProps {
-  isOpen: boolean
-  onClose: () => void
-  userId: string
-}
-
-export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalProps) {
+export function UserProfileModal({ isOpen, onClose, userId, displayName }: UserProfileModalProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [activity, setActivity] = useState<UserActivity | null>(null)
   const [loading, setLoading] = useState(true)
@@ -73,90 +72,79 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
         .single()
 
       if (profileError) {
-        console.error("Error fetching profile:", profileError)
+        console.error("Error fetching user profile:", profileError)
         return
       }
 
       setProfile(profileData)
 
       // Fetch user activity
-      const [postsResponse, commentsResponse, communitiesResponse] = await Promise.all([
-        // Fetch recent posts
+      const [postsResult, commentsResult, communitiesResult] = await Promise.all([
+        // Recent posts
         supabase
           .from("posts")
           .select(`
             id, title, body, tag, created_at, community_slug,
-            communities!posts_community_slug_fkey (name)
+            communities!inner(name)
           `)
           .eq("user_id", userId)
           .order("created_at", { ascending: false })
           .limit(5),
 
-        // Fetch recent comments
+        // Recent comments
         supabase
           .from("comments")
           .select(`
             id, body, created_at, post_id,
-            posts!comments_post_id_fkey (title, community_slug),
-            posts!comments_post_id_fkey (communities!posts_community_slug_fkey (name))
+            posts!inner(title, community_slug),
+            posts.communities!inner(name)
           `)
           .eq("user_id", userId)
           .order("created_at", { ascending: false })
           .limit(5),
 
-        // Fetch communities
+        // Communities joined
         supabase
           .from("community_members")
           .select(`
             created_at,
-            communities!community_members_community_slug_fkey (slug, name)
+            communities!inner(slug, name)
           `)
           .eq("user_id", userId)
           .order("created_at", { ascending: false }),
       ])
 
-      const activityData: UserActivity = {
-        posts:
-          postsResponse.data?.map((post) => ({
-            ...post,
-            community_name: post.communities?.name || "Unknown Community",
-          })) || [],
-        comments:
-          commentsResponse.data?.map((comment) => ({
-            ...comment,
-            post_title: comment.posts?.title || "Unknown Post",
-            community_slug: comment.posts?.community_slug || "",
-            community_name: comment.posts?.communities?.name || "Unknown Community",
-          })) || [],
-        communities:
-          communitiesResponse.data?.map((member) => ({
-            slug: member.communities?.slug || "",
-            name: member.communities?.name || "Unknown Community",
-            joined_at: member.created_at,
-          })) || [],
-      }
+      const posts =
+        postsResult.data?.map((post) => ({
+          ...post,
+          community_name: (post as any).communities?.name || "Unknown Community",
+        })) || []
 
-      setActivity(activityData)
+      const comments =
+        commentsResult.data?.map((comment) => ({
+          ...comment,
+          post_title: (comment as any).posts?.title || "Unknown Post",
+          community_slug: (comment as any).posts?.community_slug || "",
+          community_name: (comment as any).posts?.communities?.name || "Unknown Community",
+        })) || []
+
+      const communities =
+        communitiesResult.data?.map((member) => ({
+          slug: (member as any).communities.slug,
+          name: (member as any).communities.name,
+          joined_at: member.created_at,
+        })) || []
+
+      setActivity({
+        posts,
+        comments,
+        communities,
+      })
     } catch (error) {
-      console.error("Error fetching user profile:", error)
+      console.error("Error fetching user data:", error)
     } finally {
       setLoading(false)
     }
-  }
-
-  const getDisplayName = () => {
-    if (!profile) return "Unknown User"
-    return profile.display_name || profile.email?.split("@")[0] || "Anonymous"
-  }
-
-  const getInitials = () => {
-    const name = getDisplayName()
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2)
   }
 
   const formatDate = (dateString: string) => {
@@ -167,115 +155,124 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
     }
   }
 
-  const truncateText = (text: string, maxLength: number) => {
-    if (text.length <= maxLength) return text
-    return text.slice(0, maxLength) + "..."
+  const getTagColor = (tag: string) => {
+    const colors: Record<string, string> = {
+      Announcement: "bg-blue-100 text-blue-800",
+      "Buy/Sell": "bg-green-100 text-green-800",
+      "Lost & Found": "bg-red-100 text-red-800",
+      General: "bg-gray-100 text-gray-800",
+      RenoTalk: "bg-orange-100 text-orange-800",
+      "Fur Kids": "bg-purple-100 text-purple-800",
+      Sports: "bg-indigo-100 text-indigo-800",
+      "Events/Parties": "bg-pink-100 text-pink-800",
+    }
+    return colors[tag] || "bg-gray-100 text-gray-800"
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>User Profile</DialogTitle>
+          <DialogTitle>Member Profile</DialogTitle>
         </DialogHeader>
 
         {loading ? (
-          <div className="space-y-6">
-            <div className="flex items-center space-x-4">
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
               <Skeleton className="h-16 w-16 rounded-full" />
               <div className="space-y-2">
                 <Skeleton className="h-6 w-32" />
                 <Skeleton className="h-4 w-24" />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
-              {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} className="h-20" />
-              ))}
-            </div>
-            <Skeleton className="h-32" />
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-48 w-full" />
           </div>
         ) : (
           <div className="space-y-6">
             {/* Profile Header */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16">
-                <AvatarFallback className="text-lg bg-red-100 text-red-800">{getInitials()}</AvatarFallback>
+                <AvatarFallback className="text-lg bg-red-100 text-red-800">
+                  {displayName.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
               </Avatar>
               <div className="flex-1">
-                <h3 className="text-xl font-semibold text-gray-900">{getDisplayName()}</h3>
-                <div className="flex items-center gap-2 mt-1">
-                  <Calendar className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm text-gray-500">
-                    Joined {profile ? formatDate(profile.created_at) : "recently"}
-                  </span>
-                  {profile?.email_verified && (
-                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                      Verified
-                    </Badge>
-                  )}
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xl font-semibold">{displayName}</h3>
+                  {profile?.email && <CheckCircle className="h-5 w-5 text-green-500" title="Verified member" />}
                 </div>
+                <p className="text-gray-600">
+                  Member since {profile?.created_at ? formatDate(profile.created_at) : "recently"}
+                </p>
               </div>
             </div>
 
             {/* Activity Stats */}
             <div className="grid grid-cols-3 gap-4">
               <Card>
-                <CardContent className="p-4 text-center">
-                  <div className="flex items-center justify-center mb-2">
-                    <FileText className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">{activity?.posts.length || 0}</div>
-                  <div className="text-sm text-gray-500">Posts</div>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Posts
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{activity?.posts.length || 0}</div>
                 </CardContent>
               </Card>
+
               <Card>
-                <CardContent className="p-4 text-center">
-                  <div className="flex items-center justify-center mb-2">
-                    <MessageSquare className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">{activity?.comments.length || 0}</div>
-                  <div className="text-sm text-gray-500">Comments</div>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <MessageCircle className="h-4 w-4" />
+                    Comments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{activity?.comments.length || 0}</div>
                 </CardContent>
               </Card>
+
               <Card>
-                <CardContent className="p-4 text-center">
-                  <div className="flex items-center justify-center mb-2">
-                    <Users className="h-5 w-5 text-purple-600" />
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">{activity?.communities.length || 0}</div>
-                  <div className="text-sm text-gray-500">Communities</div>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Communities
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{activity?.communities.length || 0}</div>
                 </CardContent>
               </Card>
             </div>
 
             {/* Recent Activity */}
             <div className="space-y-4">
-              <h4 className="text-lg font-semibold text-gray-900">Recent Activity</h4>
+              <h4 className="text-lg font-semibold">Recent Activity</h4>
 
               {/* Recent Posts */}
               {activity?.posts && activity.posts.length > 0 && (
                 <div>
-                  <h5 className="text-sm font-medium text-gray-700 mb-2">Recent Posts</h5>
-                  <div className="space-y-2">
+                  <h5 className="text-md font-medium mb-3 text-gray-700">Recent Posts</h5>
+                  <div className="space-y-3">
                     {activity.posts.map((post) => (
-                      <Card key={post.id} className="border-l-4 border-l-blue-500">
-                        <CardContent className="p-3">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <h6 className="font-medium text-sm text-gray-900">{post.title}</h6>
-                              <p className="text-xs text-gray-600 mt-1">{truncateText(post.body, 100)}</p>
-                              <div className="flex items-center gap-2 mt-2">
-                                <Badge variant="outline" className="text-xs">
-                                  {post.tag}
-                                </Badge>
-                                <span className="text-xs text-gray-500">in {post.community_name}</span>
-                              </div>
-                            </div>
-                            <span className="text-xs text-gray-500 ml-2">{formatDate(post.created_at)}</span>
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <div key={post.id} className="border rounded-lg p-3 bg-gray-50">
+                        <div className="flex items-start justify-between mb-2">
+                          <h6 className="font-medium text-sm">{post.title}</h6>
+                          <Badge variant="secondary" className={`text-xs ${getTagColor(post.tag)}`}>
+                            {post.tag}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">
+                          {post.body.length > 100 ? `${post.body.slice(0, 100)}...` : post.body}
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <span>{post.community_name}</span>
+                          <span>•</span>
+                          <span>{formatDate(post.created_at)}</span>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -284,25 +281,21 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
               {/* Recent Comments */}
               {activity?.comments && activity.comments.length > 0 && (
                 <div>
-                  <h5 className="text-sm font-medium text-gray-700 mb-2">Recent Comments</h5>
-                  <div className="space-y-2">
+                  <h5 className="text-md font-medium mb-3 text-gray-700">Recent Comments</h5>
+                  <div className="space-y-3">
                     {activity.comments.map((comment) => (
-                      <Card key={comment.id} className="border-l-4 border-l-green-500">
-                        <CardContent className="p-3">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="text-xs text-gray-600">{truncateText(comment.body, 100)}</p>
-                              <div className="flex items-center gap-2 mt-2">
-                                <span className="text-xs text-gray-500">
-                                  on "{truncateText(comment.post_title || "", 30)}"
-                                </span>
-                                <span className="text-xs text-gray-500">in {comment.community_name}</span>
-                              </div>
-                            </div>
-                            <span className="text-xs text-gray-500 ml-2">{formatDate(comment.created_at)}</span>
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <div key={comment.id} className="border rounded-lg p-3 bg-gray-50">
+                        <p className="text-sm text-gray-600 mb-2">
+                          {comment.body.length > 100 ? `${comment.body.slice(0, 100)}...` : comment.body}
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <span>on "{comment.post_title}"</span>
+                          <span>•</span>
+                          <span>{comment.community_name}</span>
+                          <span>•</span>
+                          <span>{formatDate(comment.created_at)}</span>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -311,30 +304,23 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
               {/* Communities */}
               {activity?.communities && activity.communities.length > 0 && (
                 <div>
-                  <h5 className="text-sm font-medium text-gray-700 mb-2">Communities</h5>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <h5 className="text-md font-medium mb-3 text-gray-700">Communities</h5>
+                  <div className="flex flex-wrap gap-2">
                     {activity.communities.map((community) => (
-                      <Card key={community.slug} className="border-l-4 border-l-purple-500">
-                        <CardContent className="p-3">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium text-sm text-gray-900">{community.name}</span>
-                            <span className="text-xs text-gray-500">{formatDate(community.joined_at)}</span>
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <Badge key={community.slug} variant="outline" className="text-xs">
+                        {community.name}
+                      </Badge>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* No Activity Message */}
+              {/* No activity message */}
               {(!activity?.posts || activity.posts.length === 0) &&
                 (!activity?.comments || activity.comments.length === 0) && (
-                  <Card>
-                    <CardContent className="p-6 text-center">
-                      <p className="text-gray-500">No recent activity to display.</p>
-                    </CardContent>
-                  </Card>
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No recent activity to show.</p>
+                  </div>
                 )}
             </div>
           </div>

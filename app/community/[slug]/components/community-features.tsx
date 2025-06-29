@@ -15,7 +15,7 @@ export function CommunityFeatures({ communitySlug }: CommunityFeaturesProps) {
       title: "Group Buys",
       description: "Save money by buying together with your neighbors",
       icon: ShoppingCart,
-      color: "bg-red-50 text-red-600",
+      color: "text-red-600",
       iconBg: "bg-red-100",
       href: `/community/${communitySlug}/groupbuys`,
       available: true,
@@ -25,7 +25,7 @@ export function CommunityFeatures({ communitySlug }: CommunityFeaturesProps) {
       title: "Ride Sharing",
       description: "Share rides with neighbors for daily commutes",
       icon: Car,
-      color: "bg-blue-50 text-blue-600",
+      color: "text-blue-600",
       iconBg: "bg-blue-100",
       href: "#",
       available: false,
@@ -35,7 +35,7 @@ export function CommunityFeatures({ communitySlug }: CommunityFeaturesProps) {
       title: "Local Businesses",
       description: "Support businesses in your community",
       icon: MapPin,
-      color: "bg-indigo-50 text-indigo-600",
+      color: "text-indigo-600",
       iconBg: "bg-indigo-100",
       href: "#",
       available: false,
@@ -43,32 +43,44 @@ export function CommunityFeatures({ communitySlug }: CommunityFeaturesProps) {
   ]
 
   return (
-    <div className="mb-8">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Community Features</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="mb-6">
+      <h2 className="text-xl font-bold text-gray-900 mb-4">Community Features</h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {features.map((feature) => {
           const IconComponent = feature.icon
           const content = (
-            <Card className="group hover:shadow-md transition-all duration-200 cursor-pointer border-2 hover:border-gray-200">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div
-                      className={`inline-flex items-center justify-center w-12 h-12 rounded-lg ${feature.iconBg} mb-4`}
-                    >
-                      <IconComponent className={`h-6 w-6 ${feature.color.split(" ")[1]}`} />
+            <Card
+              className={`relative overflow-hidden transition-all duration-200 ${
+                feature.available
+                  ? "group hover:shadow-md cursor-pointer border-2 hover:border-gray-200"
+                  : "cursor-not-allowed opacity-75 border border-gray-200"
+              }`}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3 flex-1">
+                    <div className={`inline-flex items-center justify-center w-10 h-10 rounded-lg ${feature.iconBg}`}>
+                      <IconComponent className={`h-5 w-5 ${feature.color}`} />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{feature.title}</h3>
-                    <p className="text-gray-600 text-sm leading-relaxed">{feature.description}</p>
-                    {!feature.available && (
-                      <span className="inline-block mt-3 px-2 py-1 text-xs font-medium text-gray-500 bg-gray-100 rounded-full">
-                        Coming Soon
-                      </span>
-                    )}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-semibold text-gray-900 truncate">{feature.title}</h3>
+                      <p className="text-gray-600 text-xs leading-relaxed line-clamp-2">{feature.description}</p>
+                    </div>
                   </div>
-                  <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0 ml-4" />
+                  {feature.available && (
+                    <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0 ml-2" />
+                  )}
                 </div>
               </CardContent>
+
+              {/* Coming Soon Overlay */}
+              {!feature.available && (
+                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
+                  <div className="bg-gray-100 px-3 py-1.5 rounded-full border border-gray-300">
+                    <span className="text-xs font-medium text-gray-600">Coming Soon</span>
+                  </div>
+                </div>
+              )}
             </Card>
           )
 
@@ -80,11 +92,7 @@ export function CommunityFeatures({ communitySlug }: CommunityFeaturesProps) {
             )
           }
 
-          return (
-            <div key={feature.id} className="cursor-not-allowed opacity-75">
-              {content}
-            </div>
-          )
+          return <div key={feature.id}>{content}</div>
         })}
       </div>
     </div>
