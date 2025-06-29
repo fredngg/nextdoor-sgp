@@ -88,6 +88,10 @@ function PostCard({
       "Buy/Sell": "bg-green-100 text-green-800",
       "Lost & Found": "bg-red-100 text-red-800",
       General: "bg-gray-100 text-gray-800",
+      RenoTalk: "bg-orange-100 text-orange-800",
+      "Fur Kids": "bg-purple-100 text-purple-800",
+      Sports: "bg-indigo-100 text-indigo-800",
+      "Events/Parties": "bg-pink-100 text-pink-800",
     }
     return colors[tag] || "bg-gray-100 text-gray-800"
   }
@@ -559,6 +563,10 @@ export function PostFeed({
                         <SelectItem value="Announcement">Announcement</SelectItem>
                         <SelectItem value="Buy/Sell">Buy/Sell</SelectItem>
                         <SelectItem value="Lost & Found">Lost & Found</SelectItem>
+                        <SelectItem value="RenoTalk">RenoTalk</SelectItem>
+                        <SelectItem value="Fur Kids">Fur Kids</SelectItem>
+                        <SelectItem value="Sports">Sports</SelectItem>
+                        <SelectItem value="Events/Parties">Events/Parties</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

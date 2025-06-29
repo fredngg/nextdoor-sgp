@@ -2,65 +2,66 @@
 
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Users, Eye } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 import { supabase } from "@/lib/supabase"
 import { formatDistanceToNow } from "date-fns"
+import { Eye } from "lucide-react"
 import { UserProfileModal } from "./user-profile-modal"
 
-interface CommunityMember {
+interface Member {
   id: string
   user_id: string
-  role: string
-  joined_at: string
-  user_profiles: {
-    display_name: string | null
-    email: string | null
-    avatar_url: string | null
-  }
+  display_name: string
+  created_at: string
 }
 
 interface MembersModalProps {
-  communityId: string
   isOpen: boolean
   onClose: () => void
+  communitySlug: string
 }
 
-export function MembersModal({ communityId, isOpen, onClose }: MembersModalProps) {
-  const [members, setMembers] = useState<CommunityMember[]>([])
-  const [loading, setLoading] = useState(false)
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
-  const [showUserProfile, setShowUserProfile] = useState(false)
+export function MembersModal({ isOpen, onClose, communitySlug }: MembersModalProps) {
+  const [members, setMembers] = useState<Member[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string } | null>(null)
 
   useEffect(() => {
-    if (isOpen && communityId) {
+    if (isOpen) {
       fetchMembers()
     }
-  }, [isOpen, communityId])
+  }, [isOpen, communitySlug])
 
   const fetchMembers = async () => {
-    setLoading(true)
     try {
+      setLoading(true)
+
       const { data, error } = await supabase
         .from("community_members")
         .select(`
           id,
           user_id,
-          role,
-          joined_at,
-          user_profiles!inner (
-            display_name,
-            email,
-            avatar_url
-          )
+          created_at,
+          user_profiles!inner(display_name)
         `)
-        .eq("community_id", communityId)
-        .order("joined_at", { ascending: false })
+        .eq("community_slug", communitySlug)
+        .order("created_at", { ascending: false })
 
-      if (error) throw error
-      setMembers(data || [])
+      if (error) {
+        console.error("Error fetching members:", error)
+        return
+      }
+
+      const formattedMembers = data.map((member: any) => ({
+        id: member.id,
+        user_id: member.user_id,
+        display_name: member.user_profiles?.display_name || "Unknown User",
+        created_at: member.created_at,
+      }))
+
+      setMembers(formattedMembers)
     } catch (error) {
       console.error("Error fetching members:", error)
     } finally {
@@ -68,104 +69,78 @@ export function MembersModal({ communityId, isOpen, onClose }: MembersModalProps
     }
   }
 
-  const getDisplayName = (member: CommunityMember) => {
-    return (
-      member.user_profiles.display_name ||
-      member.user_profiles.email?.split("@")[0] ||
-      `User ${member.user_id.slice(0, 8)}`
-    )
+  const formatDate = (dateString: string) => {
+    try {
+      return formatDistanceToNow(new Date(dateString), { addSuffix: true })
+    } catch (e) {
+      return "recently"
+    }
   }
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2)
-  }
-
-  const handleMemberClick = (userId: string) => {
-    setSelectedUserId(userId)
-    setShowUserProfile(true)
-  }
-
-  const handleCloseUserProfile = () => {
-    setShowUserProfile(false)
-    setSelectedUserId(null)
+  const handleMemberClick = (userId: string, displayName: string) => {
+    setSelectedMember({ userId, displayName })
   }
 
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-md max-h-[70vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Community Members ({members.length})
-            </DialogTitle>
+            <DialogTitle>Community Members</DialogTitle>
           </DialogHeader>
 
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {members.map((member) => (
+          <div className="space-y-3">
+            {loading ? (
+              // Loading skeletons
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 p-3">
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <div className="flex-1 space-y-1">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                </div>
+              ))
+            ) : members.length > 0 ? (
+              members.map((member) => (
                 <div
                   key={member.id}
-                  onClick={() => handleMemberClick(member.user_id)}
-                  className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 cursor-pointer transition-colors group"
+                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors group"
+                  onClick={() => handleMemberClick(member.user_id, member.display_name)}
                 >
-                  <div className="flex items-center space-x-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={member.user_profiles.avatar_url || undefined} />
-                      <AvatarFallback className="bg-red-100 text-red-600 text-sm font-medium">
-                        {getInitials(getDisplayName(member))}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-gray-900">{getDisplayName(member)}</p>
-                        {member.role === "admin" && (
-                          <Badge variant="secondary" className="text-xs bg-red-100 text-red-800">
-                            Admin
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-500">
-                        Joined {formatDistanceToNow(new Date(member.joined_at))} ago
-                      </p>
-                    </div>
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback className="text-sm bg-red-100 text-red-800">
+                      {member.display_name.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{member.display_name}</p>
+                    <p className="text-xs text-gray-500">Joined {formatDate(member.created_at)}</p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleMemberClick(member.user_id)
-                    }}
-                  >
+                  <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
                     <Eye className="h-4 w-4" />
-                    <span className="ml-1">View</span>
+                    <span className="sr-only">View profile</span>
                   </Button>
                 </div>
-              ))}
-
-              {members.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                  <p>No members found</p>
-                </div>
-              )}
-            </div>
-          )}
+              ))
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <p>No members found.</p>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
-      <UserProfileModal userId={selectedUserId} isOpen={showUserProfile} onClose={handleCloseUserProfile} />
+      {/* User Profile Modal */}
+      {selectedMember && (
+        <UserProfileModal
+          isOpen={!!selectedMember}
+          onClose={() => setSelectedMember(null)}
+          userId={selectedMember.userId}
+          displayName={selectedMember.displayName}
+        />
+      )}
     </>
   )
 }
