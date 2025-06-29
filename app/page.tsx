@@ -403,35 +403,37 @@ export default function NextDoorSG() {
 
             {/* Results with background container */}
             {locationData && (
-              <div className="max-w-2xl mx-auto mt-6 p-6 bg-white rounded-lg shadow-sm">
+              <div className="max-w-2xl mx-auto mt-6 p-4 sm:p-6 bg-white rounded-lg shadow-sm">
                 {/* Search Again Section */}
                 <div className="mb-6 pb-6 border-b border-gray-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-900">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-lg font-semibold text-gray-900 truncate">
                         Search Results for {locationData.postalCode}
                       </h2>
                       <p className="text-sm text-gray-600">Want to search for a different postal code?</p>
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={toggleNewSearch}
-                      className="flex items-center gap-2 bg-transparent"
-                    >
-                      {showNewSearch ? (
-                        <>
-                          <X className="h-4 w-4" />
-                          Cancel
-                        </>
-                      ) : (
-                        <>
-                          <Search className="h-4 w-4" />
-                          New Search
-                        </>
-                      )}
-                    </Button>
+                    <div className="flex-shrink-0">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={toggleNewSearch}
+                        className="flex items-center gap-2 bg-transparent w-full sm:w-auto"
+                      >
+                        {showNewSearch ? (
+                          <>
+                            <X className="h-4 w-4" />
+                            Cancel
+                          </>
+                        ) : (
+                          <>
+                            <Search className="h-4 w-4" />
+                            New Search
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
 
                   {/* New Search Form */}
@@ -442,7 +444,7 @@ export default function NextDoorSG() {
                           <label htmlFor="new-postal-code" className="text-sm font-medium text-gray-700 block">
                             Enter new postal code
                           </label>
-                          <div className="flex gap-3">
+                          <div className="flex flex-col sm:flex-row gap-3">
                             <input
                               id="new-postal-code"
                               type="text"
@@ -457,17 +459,17 @@ export default function NextDoorSG() {
                             <Button
                               type="submit"
                               disabled={newSearchLoading || !newSearchCode.trim()}
-                              className="bg-red-600 hover:bg-red-700 px-6 flex items-center gap-2"
+                              className="bg-red-600 hover:bg-red-700 px-4 sm:px-6 flex items-center justify-center gap-2 w-full sm:w-auto min-w-0"
                             >
                               {newSearchLoading ? (
                                 <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                                  Searching...
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white flex-shrink-0" />
+                                  <span className="hidden sm:inline">Searching...</span>
                                 </>
                               ) : (
                                 <>
-                                  <Search className="w-4 h-4" />
-                                  Search
+                                  <Search className="w-4 h-4 flex-shrink-0" />
+                                  <span className="hidden sm:inline">Search</span>
                                 </>
                               )}
                             </Button>
@@ -532,7 +534,7 @@ export default function NextDoorSG() {
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900 mb-3">Your Address</h2>
                     <Card>
-                      <CardContent className="p-6">
+                      <CardContent className="p-4 sm:p-6">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-3">
                             <div>
@@ -557,7 +559,7 @@ export default function NextDoorSG() {
                                   <Building className="h-4 w-4" />
                                   Building Name
                                 </div>
-                                <p className="text-lg font-semibold">{locationData.buildingName}</p>
+                                <p className="text-lg font-semibold break-words">{locationData.buildingName}</p>
                               </div>
                             )}
                           </div>
@@ -567,14 +569,14 @@ export default function NextDoorSG() {
                                 <MapPin className="h-4 w-4" />
                                 Street Name
                               </div>
-                              <p className="text-lg font-semibold">{locationData.street}</p>
+                              <p className="text-lg font-semibold break-words">{locationData.street}</p>
                             </div>
                             <div>
                               <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
                                 <MapPin className="h-4 w-4" />
                                 Full Address
                               </div>
-                              <p className="text-sm text-gray-700">{locationData.fullAddress}</p>
+                              <p className="text-sm text-gray-700 break-words">{locationData.fullAddress}</p>
                             </div>
                           </div>
                         </div>
