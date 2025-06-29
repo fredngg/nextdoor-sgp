@@ -57,28 +57,12 @@ export function generateCommunityName(
     return `${buildingName} Residents`
   }
 
-  // For HDB blocks with road names (older estates)
-  if (block && roadName) {
-    const blockMatch = block.match(/\d+/)
-    if (blockMatch) {
-      const blockNum = Number.parseInt(blockMatch[0])
-      const rangeStart = Math.floor(blockNum / 10) * 10
-      const rangeEnd = rangeStart + 9
-
-      // Use road name for older estates
-      const cleanRoadName = roadName
-        .replace(/\b(STREET|ROAD|AVENUE|LANE|DRIVE|CLOSE|CRESCENT|PLACE|WALK|PARK|TERRACE)\b/gi, "")
-        .trim()
-
-      return `${cleanRoadName} Blk ${rangeStart}–${rangeEnd}`
-    }
-  }
-
-  // For landed properties or cases where we only have road name
+  // For HDB blocks with road names (older estates) - just use road name without block numbers
   if (roadName) {
     const cleanRoadName = roadName
       .replace(/\b(STREET|ROAD|AVENUE|LANE|DRIVE|CLOSE|CRESCENT|PLACE|WALK|PARK|TERRACE)\b/gi, "")
       .trim()
+
     return `${cleanRoadName} Community`
   }
 

@@ -366,6 +366,23 @@ export default function CommunityPage() {
     )
   }
 
+  // Helper function to format location display
+  const formatLocationDisplay = () => {
+    const parts = []
+
+    if (community.area && community.area !== "Unknown") {
+      parts.push(community.area)
+    }
+
+    if (community.region && community.region !== "Unknown" && community.region !== "Singapore") {
+      parts.push(community.region)
+    } else if (community.region === "Singapore" && parts.length === 0) {
+      parts.push("Singapore")
+    }
+
+    return parts.join(", ")
+  }
+
   return (
     <>
       <Navigation />
@@ -378,10 +395,12 @@ export default function CommunityPage() {
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">{community.name}</h1>
                 <p className="text-gray-600 mb-4">{community.description}</p>
                 <div className="flex items-center gap-4 text-sm text-gray-500">
-                  <span>
-                    {community.area}, {community.region}
-                  </span>
-                  <span>•</span>
+                  {formatLocationDisplay() && (
+                    <>
+                      <span>{formatLocationDisplay()}</span>
+                      <span>•</span>
+                    </>
+                  )}
                   <span>{community.member_count} members</span>
                 </div>
               </div>
