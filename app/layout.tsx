@@ -14,7 +14,12 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: "nextdoor.sg - Discover Your HDB Community",
   description: "Find your Singapore HDB community and connect with neighbors using your postal code.",
-    generator: 'v0.dev'
+  generator: "v0.dev",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.ico",
+  },
 }
 
 export default function RootLayout({
@@ -24,6 +29,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+        <link rel="shortcut icon" href="/favicon.ico" />
+      </head>
       <body className={poppins.className}>
         <AuthProvider>
           {children}

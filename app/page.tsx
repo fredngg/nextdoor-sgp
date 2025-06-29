@@ -129,39 +129,27 @@ export default function NextDoorSG() {
     }
   }, [locationData])
 
+  const validatePostalCode = (code: string): boolean => {
+    // Singapore postal codes are exactly 6 digits
+    const postalCodeRegex = /^\d{6}$/
+    return postalCodeRegex.test(code.trim())
+  }
+
   const performSearch = async (searchPostalCode: string) => {
     console.log("🔍 DEBUG [page.tsx]: Starting search for postal code:", searchPostalCode.trim())
 
-    // Validate postal code format
-    if (!/^\d{6}$/.test(searchPostalCode.trim())) {
+    // 1. Validate postal code format first
+    if (!validatePostalCode(searchPostalCode)) {
       throw new Error("Please enter a valid 6-digit Singapore postal code")
     }
+    console.log("✅ DEBUG [page.tsx]: Postal code format validation passed.")
 
-    console.log("✅ DEBUG [page.tsx]: Postal code validation passed:", searchPostalCode.trim())
-
-    // First, get postal sector information
-    const postalSector = await getPostalSectorFromCode(searchPostalCode)
-    if (!postalSector) {
-      throw new Error("Invalid postal code. Please check and try again.")
-    }
-
-    console.log("✅ DEBUG [page.tsx]: Postal sector lookup successful:", {
-      sector: postalSector.sector_code,
-      district: postalSector.district_name,
-      region: postalSector.region,
-      postalCode: searchPostalCode,
-    })
-
-    // Then fetch detailed address information from OneMap via our API route
-    console.log("🌐 DEBUG [page.tsx]: About to call OneMap API via /api/onemap-search")
-    console.log("🌐 DEBUG [page.tsx]: API URL:", `/api/onemap-search?postalCode=${searchPostalCode}`)
-
+    // 2. Use OneMap API as the primary source of truth for existence
+    console.log("🌐 DEBUG [page.tsx]: Calling OneMap API for validation...")
     const response = await fetch(`/api/onemap-search?postalCode=${searchPostalCode}`)
-
     console.log("📡 DEBUG [page.tsx]: OneMap API response received:", {
       status: response.status,
       ok: response.ok,
-      statusText: response.statusText,
     })
 
     if (!response.ok) {
@@ -171,50 +159,37 @@ export default function NextDoorSG() {
 
     const data = await response.json()
 
-    const resultsCount = data.results?.length || 0
-
-    console.log("📊 DEBUG [page.tsx]: OneMap response data:", {
-      resultsCount: resultsCount,
-      firstResult: data.results?.[0] || null,
-      rawData: data,
-    })
-
-    if (!data.results || data.results.length === 0) {
+    // 3. Strict check on OneMap results. This is the critical validation step.
+    if (!data || data.found === 0 || !data.results || data.results.length === 0) {
+      console.log("❌ DEBUG [page.tsx]: OneMap validation failed. Postal code does not exist:", searchPostalCode)
       throw new Error("We couldn't find detailed information for this postal code. Please try again.")
     }
 
+    console.log("✅ DEBUG [page.tsx]: OneMap validation successful. Postal code exists.")
     const result = data.results[0]
+
+    // 4. Now that we know the postal code is valid, get our internal postal sector info
+    const postalSector = await getPostalSectorFromCode(searchPostalCode)
+    if (!postalSector) {
+      // This is an internal data mismatch error, should be rare
+      console.error(
+        "❌ CRITICAL [page.tsx]: OneMap found address but no matching postal sector in our DB for:",
+        searchPostalCode,
+      )
+      throw new Error("Address found, but we could not classify it. Please contact support.")
+    }
+    console.log("✅ DEBUG [page.tsx]: Postal sector lookup successful.")
+
+    // 5. Proceed with generating location data
     const block = result.BLK_NO || ""
     const street = result.ROAD_NAME || "Unknown Street"
     const roadName = result.ROAD_NAME || ""
     const fullAddress = result.ADDRESS || "Unknown Address"
     const buildingName = result.BUILDING || ""
-    const latitude = Number.parseFloat(result.LATITUDE)
-    const longitude = Number.parseFloat(result.LONGITUDE)
+    const latitude = Number.parseFloat(result.LATITUDE) || 1.3521
+    const longitude = Number.parseFloat(result.LONGITUDE) || 103.8198
 
-    console.log("🏠 DEBUG [page.tsx]: Extracted address data:", {
-      block,
-      street,
-      roadName,
-      fullAddress,
-      buildingName,
-      latitude,
-      longitude,
-      coordinates: `${latitude}, ${longitude}`,
-    })
-
-    // Classify the address type
     const addressClassification = classifyAddress(buildingName, fullAddress, street)
-
-    console.log("🏷️ DEBUG [page.tsx]: Address classification result:", {
-      isCommercial: addressClassification.isCommercial,
-      isHDB: addressClassification.isHDB,
-      isCondo: addressClassification.isCondo,
-      buildingType: addressClassification.buildingType,
-      confidence: addressClassification.confidence,
-    })
-
-    // Generate community information based on postal sector
     const community = generateCommunityName(
       postalSector,
       block,
@@ -224,12 +199,7 @@ export default function NextDoorSG() {
     )
     const communitySlug = generateCommunitySlug(community)
 
-    console.log("🏘️ DEBUG [page.tsx]: Community generation complete:", {
-      community,
-      communitySlug,
-      region: postalSector.region,
-      district: postalSector.district_name,
-    })
+    console.log("🏘️ DEBUG [page.tsx]: Community generation complete.")
 
     return {
       postalCode: searchPostalCode,
@@ -390,10 +360,20 @@ export default function NextDoorSG() {
                         <Button
                           type="submit"
                           size="lg"
-                          className="w-full max-w-xs sm:w-56 bg-red-600 hover:bg-red-700 text-base py-4 h-12 font-semibold"
+                          className="w-full max-w-xs sm:w-56 bg-red-600 hover:bg-red-700 text-base py-4 h-12 font-semibold flex items-center justify-center gap-2"
                           disabled={loading || !postalCode.trim()}
                         >
-                          {loading ? "Searching..." : "Discover Community"}
+                          {loading ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                              Searching...
+                            </>
+                          ) : (
+                            <>
+                              <Search className="w-4 h-4" />
+                              Discover Community
+                            </>
+                          )}
                         </Button>
                       </div>
                     </form>
@@ -478,9 +458,19 @@ export default function NextDoorSG() {
                             <Button
                               type="submit"
                               disabled={newSearchLoading || !newSearchCode.trim()}
-                              className="bg-red-600 hover:bg-red-700 px-6"
+                              className="bg-red-600 hover:bg-red-700 px-6 flex items-center gap-2"
                             >
-                              {newSearchLoading ? "Searching..." : "Search"}
+                              {newSearchLoading ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                                  Searching...
+                                </>
+                              ) : (
+                                <>
+                                  <Search className="w-4 h-4" />
+                                  Search
+                                </>
+                              )}
                             </Button>
                           </div>
                         </div>

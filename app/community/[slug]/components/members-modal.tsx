@@ -1,191 +1,171 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Users, Calendar } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Users, Eye } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { formatDistanceToNow } from "date-fns"
-import { getUserDisplayName, getDisplayNameFallback } from "@/lib/display-name"
+import { UserProfileModal } from "./user-profile-modal"
 
-interface Member {
+interface CommunityMember {
   id: string
   user_id: string
+  role: string
   joined_at: string
-  display_name?: string
-  user_email?: string
-  user_metadata?: {
-    full_name?: string
+  user_profiles: {
+    display_name: string | null
+    email: string | null
+    avatar_url: string | null
   }
 }
 
 interface MembersModalProps {
+  communityId: string
   isOpen: boolean
   onClose: () => void
-  communitySlug: string
-  memberCount: number
 }
 
-export function MembersModal({ isOpen, onClose, communitySlug, memberCount }: MembersModalProps) {
-  const [members, setMembers] = useState<Member[]>([])
+export function MembersModal({ communityId, isOpen, onClose }: MembersModalProps) {
+  const [members, setMembers] = useState<CommunityMember[]>([])
   const [loading, setLoading] = useState(false)
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [showUserProfile, setShowUserProfile] = useState(false)
 
   useEffect(() => {
-    if (isOpen && communitySlug) {
+    if (isOpen && communityId) {
       fetchMembers()
     }
-  }, [isOpen, communitySlug])
+  }, [isOpen, communityId])
 
   const fetchMembers = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
-
-      // First, get the community members
-      const { data: memberData, error: memberError } = await supabase
+      const { data, error } = await supabase
         .from("community_members")
-        .select("id, user_id, joined_at")
-        .eq("community_slug", communitySlug)
+        .select(`
+          id,
+          user_id,
+          role,
+          joined_at,
+          user_profiles!inner (
+            display_name,
+            email,
+            avatar_url
+          )
+        `)
+        .eq("community_id", communityId)
         .order("joined_at", { ascending: false })
 
-      if (memberError) {
-        throw new Error(`Failed to fetch community members: ${memberError.message}`)
-      }
-
-      if (!memberData || memberData.length === 0) {
-        setMembers([])
-        return
-      }
-
-      // Get display names for all members
-      const membersWithDisplayNames = await Promise.all(
-        memberData.map(async (member) => {
-          try {
-            // Get display name from user_profiles table
-            const displayName = await getUserDisplayName(member.user_id)
-
-            // Try to get user email as fallback
-            let userEmail: string | undefined
-            try {
-              const { data: userData, error: userError } = await supabase.auth.admin.getUserById(member.user_id)
-              if (!userError && userData.user) {
-                userEmail = userData.user.email
-              }
-            } catch (error) {
-              console.error(`Failed to fetch user email for ${member.user_id}:`, error)
-            }
-
-            return {
-              ...member,
-              display_name: displayName,
-              user_email: userEmail,
-            }
-          } catch (error) {
-            console.error(`Failed to fetch display name for ${member.user_id}:`, error)
-            return {
-              ...member,
-              display_name: null,
-              user_email: undefined,
-            }
-          }
-        }),
-      )
-
-      setMembers(membersWithDisplayNames)
+      if (error) throw error
+      setMembers(data || [])
     } catch (error) {
       console.error("Error fetching members:", error)
-      setMembers([])
     } finally {
       setLoading(false)
     }
   }
 
-  const getDisplayName = (member: Member) => {
-    if (member.display_name) {
-      return member.display_name
-    }
-
-    return getDisplayNameFallback(member.user_email, member.user_id)
+  const getDisplayName = (member: CommunityMember) => {
+    return (
+      member.user_profiles.display_name ||
+      member.user_profiles.email?.split("@")[0] ||
+      `User ${member.user_id.slice(0, 8)}`
+    )
   }
 
-  const getInitials = (member: Member) => {
-    const name = getDisplayName(member)
-    return name.substring(0, 2).toUpperCase()
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
   }
 
-  const formatJoinDate = (dateString: string) => {
-    try {
-      return formatDistanceToNow(new Date(dateString), { addSuffix: true })
-    } catch (e) {
-      return "recently"
-    }
+  const handleMemberClick = (userId: string) => {
+    setSelectedUserId(userId)
+    setShowUserProfile(true)
+  }
+
+  const handleCloseUserProfile = () => {
+    setShowUserProfile(false)
+    setSelectedUserId(null)
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] max-h-[600px] overflow-hidden">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Community Members
-          </DialogTitle>
-          <DialogDescription>
-            {memberCount} {memberCount === 1 ? "member" : "members"} in this community
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Community Members ({members.length})
+            </DialogTitle>
+          </DialogHeader>
 
-        <div className="max-h-[400px] overflow-y-auto">
           {loading ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="flex items-center gap-3 p-3">
-                  <Skeleton className="h-10 w-10 rounded-full" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-3 w-24" />
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
             </div>
-          ) : members.length > 0 ? (
+          ) : (
             <div className="space-y-2">
               {members.map((member) => (
                 <div
                   key={member.id}
-                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => handleMemberClick(member.user_id)}
+                  className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 cursor-pointer transition-colors group"
                 >
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-red-100 text-red-800 text-sm">{getInitials(member)}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium text-sm truncate">{getDisplayName(member)}</p>
-                      {member.user_email && (
-                        <Badge variant="outline" className="text-xs bg-gray-50">
-                          Verified
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-gray-500">
-                      <Calendar className="h-3 w-3" />
-                      <span>Joined {formatJoinDate(member.joined_at)}</span>
+                  <div className="flex items-center space-x-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={member.user_profiles.avatar_url || undefined} />
+                      <AvatarFallback className="bg-red-100 text-red-600 text-sm font-medium">
+                        {getInitials(getDisplayName(member))}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-900">{getDisplayName(member)}</p>
+                        {member.role === "admin" && (
+                          <Badge variant="secondary" className="text-xs bg-red-100 text-red-800">
+                            Admin
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500">
+                        Joined {formatDistanceToNow(new Date(member.joined_at))} ago
+                      </p>
                     </div>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleMemberClick(member.user_id)
+                    }}
+                  >
+                    <Eye className="h-4 w-4" />
+                    <span className="ml-1">View</span>
+                  </Button>
                 </div>
               ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="bg-gray-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <Users className="h-8 w-8 text-gray-400" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No members yet</h3>
-              <p className="text-gray-600">No members yet. Be the first!</p>
+
+              {members.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p>No members found</p>
+                </div>
+              )}
             </div>
           )}
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <UserProfileModal userId={selectedUserId} isOpen={showUserProfile} onClose={handleCloseUserProfile} />
+    </>
   )
 }
