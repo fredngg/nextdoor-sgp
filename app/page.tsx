@@ -1,10 +1,9 @@
 "use client"
-import { MapPin, Building, Users, Globe, Search, X } from "lucide-react"
+import { MapPin, Building, Users, Search, X } from "lucide-react"
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Navigation } from "./components/navigation"
 import { Footer } from "./components/footer"
@@ -494,40 +493,37 @@ export default function NextDoorSG() {
                     ) : (
                       <>
                         <h2 className="text-xl font-semibold text-gray-900 mb-3">Your Community</h2>
-                        <Card className="hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-red-200 overflow-hidden">
-                          <a href={`/community/${locationData.communitySlug}`}>
-                            <CardContent className="p-6">
-                              <div className="text-center space-y-4">
-                                <div className="flex justify-center">
-                                  <div className="bg-red-100 p-3 rounded-full">
-                                    <Users className="h-8 w-8 text-red-600" />
-                                  </div>
-                                </div>
-                                <div>
-                                  <h3 className="text-2xl font-bold text-gray-900 mb-2">{locationData.community}</h3>
-                                  <div className="space-y-2">
-                                    <div className="flex items-center justify-center gap-2 text-gray-600">
-                                      <Building className="h-4 w-4" />
-                                      <span className="font-medium">District:</span>
-                                      <span>{locationData.area}</span>
-                                    </div>
-                                    <div className="flex items-center justify-center gap-2 text-gray-600">
-                                      <Globe className="h-4 w-4" />
-                                      <span className="font-medium">Region:</span>
-                                      <Badge variant="secondary" className="bg-red-100 text-red-800">
-                                        {locationData.region}
-                                      </Badge>
-                                    </div>
-                                    <div className="flex items-center justify-center gap-2 text-gray-600 text-sm">
-                                      <MapPin className="h-3 w-3" />
-                                      <span>Postal Sector {locationData.postalSector.sector_code}</span>
-                                    </div>
-                                  </div>
+                        <div className="bg-gradient-to-br from-red-50 to-red-100 border-2 border-red-200 rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] cursor-pointer group">
+                          <a href={`/community/${locationData.communitySlug}`} className="block">
+                            <div className="text-center space-y-4">
+                              <div className="flex justify-center">
+                                <div className="bg-red-600 p-4 rounded-full shadow-md group-hover:bg-red-700 transition-colors duration-300">
+                                  <Users className="h-10 w-10 text-white" />
                                 </div>
                               </div>
-                            </CardContent>
+                              <div>
+                                <h3 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-red-800 transition-colors duration-300">
+                                  {locationData.community}
+                                </h3>
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-center gap-2 text-gray-700">
+                                    <Building className="h-5 w-5 text-red-600" />
+                                    <span className="font-semibold">District:</span>
+                                    <span className="font-medium">{locationData.area}</span>
+                                  </div>
+                                  <div className="flex items-center justify-center gap-2 text-gray-600 text-sm">
+                                    <MapPin className="h-4 w-4 text-red-500" />
+                                    <span>Postal Sector {locationData.postalSector.sector_code}</span>
+                                  </div>
+                                </div>
+                                <div className="mt-4 inline-flex items-center gap-2 bg-white bg-opacity-80 px-4 py-2 rounded-full text-red-700 font-semibold text-sm shadow-sm group-hover:bg-opacity-100 transition-all duration-300">
+                                  <span>Click to explore</span>
+                                  <Users className="h-4 w-4" />
+                                </div>
+                              </div>
+                            </div>
                           </a>
-                        </Card>
+                        </div>
                       </>
                     )}
                   </div>

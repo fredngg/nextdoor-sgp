@@ -3,7 +3,6 @@
 import type React from "react"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,32 +11,53 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { supabase } from "@/lib/supabase"
 import { Navigation } from "../components/navigation"
-import { Mail, Lock, AlertCircle, Chrome } from "lucide-react"
+import { Mail, Lock, User, AlertCircle, CheckCircle, Chrome } from "lucide-react"
+import { setUserDisplayName, validateDisplayName } from "@/lib/display-name"
 
-export default function LoginPage() {
+export default function RegisterPage() {
+  const [displayName, setDisplayNameState] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const router = useRouter()
+  const [message, setMessage] = useState("")
 
-  const handlePasswordSignIn = async (e: React.FormEvent) => {
+  const handlePasswordSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const { isValid, error: validationError } = validateDisplayName(displayName)
+    if (!isValid) {
+      setError(validationError || "Invalid display name.")
+      return
+    }
+
     setLoading(true)
     setError("")
+    setMessage("")
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
       })
 
-      if (error) {
-        setError(error.message)
+      if (signUpError) {
+        setError(signUpError.message)
+        setLoading(false)
+        return
+      }
+
+      if (data.user) {
+        // Set the display name in our public profile table
+        const profileSet = await setUserDisplayName(data.user.id, displayName)
+        if (!profileSet) {
+          // This is not a critical error for the user, but we should log it.
+          // The user can update their display name later.
+          console.warn(`Could not set display name for new user ${data.user.id}`)
+        }
+        setMessage("Success! Please check your email to confirm your account.")
       } else {
-        // Redirect to /me on successful login
-        router.push("/me")
-        router.refresh() // Force a refresh to update auth state in layout
+        setError("An unexpected issue occurred during sign-up. Please try again.")
       }
     } catch (err) {
       setError("An unexpected error occurred. Please try again.")
@@ -46,7 +66,7 @@ export default function LoginPage() {
     }
   }
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignUp = async () => {
     setLoading(true)
     setError("")
     try {
@@ -60,10 +80,42 @@ export default function LoginPage() {
         setError(error.message)
       }
     } catch (err) {
-      setError("An unexpected error occurred with Google Sign-In.")
+      setError("An unexpected error occurred with Google Sign-Up.")
     } finally {
-      // setLoading(false) // Page will redirect, so no need to set loading to false
+      // setLoading(false) // Page will redirect
     }
+  }
+
+  if (message) {
+    return (
+      <>
+        <Navigation />
+        <div className="min-h-screen bg-gray-50 pt-16">
+          <div className="container mx-auto px-4 py-8">
+            <div className="max-w-md mx-auto">
+              <Card>
+                <CardHeader className="text-center">
+                  <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                    <CheckCircle className="h-6 w-6 text-green-600" />
+                  </div>
+                  <CardTitle>Registration Successful</CardTitle>
+                  <CardDescription>{message}</CardDescription>
+                </CardHeader>
+                <CardContent className="text-center">
+                  <p className="text-sm text-gray-600">
+                    Once confirmed, you can{" "}
+                    <Link href="/login" className="text-red-600 hover:text-red-700 font-medium">
+                      sign in
+                    </Link>
+                    .
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </>
+    )
   }
 
   return (
@@ -74,19 +126,19 @@ export default function LoginPage() {
           <div className="max-w-md mx-auto">
             <Card>
               <CardHeader className="text-center">
-                <CardTitle className="text-2xl">Welcome Back</CardTitle>
-                <CardDescription>Sign in to your account to continue</CardDescription>
+                <CardTitle className="text-2xl">Create an Account</CardTitle>
+                <CardDescription>Join the community today!</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <Button
                     variant="outline"
                     className="w-full bg-transparent"
-                    onClick={handleGoogleSignIn}
+                    onClick={handleGoogleSignUp}
                     disabled={loading}
                   >
                     <Chrome className="mr-2 h-4 w-4" />
-                    Sign in with Google
+                    Sign up with Google
                   </Button>
 
                   <div className="relative">
@@ -98,7 +150,22 @@ export default function LoginPage() {
                     </div>
                   </div>
 
-                  <form onSubmit={handlePasswordSignIn} className="space-y-4">
+                  <form onSubmit={handlePasswordSignUp} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="displayName">Display Name</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="displayName"
+                          type="text"
+                          value={displayName}
+                          onChange={(e) => setDisplayNameState(e.target.value)}
+                          placeholder="e.g. John Doe"
+                          className="pl-10"
+                          required
+                        />
+                      </div>
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="email">Email Address</Label>
                       <div className="relative">
@@ -123,7 +190,7 @@ export default function LoginPage() {
                           type="password"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
-                          placeholder="••••••••"
+                          placeholder="Must be at least 6 characters"
                           className="pl-10"
                           required
                         />
@@ -138,16 +205,16 @@ export default function LoginPage() {
                     )}
 
                     <Button type="submit" className="w-full bg-red-600 hover:bg-red-700" disabled={loading}>
-                      {loading ? "Signing in..." : "Sign In"}
+                      {loading ? "Creating account..." : "Create Account"}
                     </Button>
                   </form>
                 </div>
 
                 <div className="mt-6 text-center text-sm text-gray-600">
                   <p>
-                    Don't have an account?{" "}
-                    <Link href="/register" className="text-red-600 hover:text-red-700 font-medium">
-                      Sign up
+                    Already have an account?{" "}
+                    <Link href="/login" className="text-red-600 hover:text-red-700 font-medium">
+                      Sign in
                     </Link>
                   </p>
                 </div>
