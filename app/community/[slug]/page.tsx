@@ -6,6 +6,7 @@ import { Navigation } from "../../components/navigation"
 import { CommunityFeatures } from "./components/community-features"
 import { PostFeed } from "./components/post-feed"
 import { CommunitySidebar } from "./components/community-sidebar"
+import { MembersModal } from "./components/members-modal"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/components/ui/use-toast"
@@ -61,6 +62,7 @@ export default function CommunityPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [postsLoading, setPostsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("All")
+  const [showMembersModal, setShowMembersModal] = useState(false)
 
   useEffect(() => {
     if (communitySlug) {
@@ -334,14 +336,19 @@ export default function CommunityPage() {
         <Navigation />
         <div className="min-h-screen bg-gray-50 pt-16">
           <div className="container mx-auto px-4 py-8 max-w-7xl">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
               <div className="lg:col-span-3">
                 <Skeleton className="h-32 w-full mb-8" />
                 <Skeleton className="h-64 w-full mb-8" />
                 <Skeleton className="h-96 w-full" />
               </div>
               <div className="lg:col-span-1">
-                <Skeleton className="h-64 w-full" />
+                <div className="bg-gray-100 rounded-xl p-6 space-y-4">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-32 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </div>
               </div>
             </div>
           </div>
@@ -387,14 +394,14 @@ export default function CommunityPage() {
     <>
       <Navigation />
       <div className="min-h-screen bg-gray-50 pt-16">
-        <div className="container mx-auto px-4 py-8 max-w-7xl">
+        <div className="container mx-auto px-4 py-6 sm:py-8 max-w-7xl">
           {/* Community Header */}
-          <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">
-            <div className="flex items-start justify-between">
+          <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-6 mb-6 sm:mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div className="flex-1">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">{community.name}</h1>
-                <p className="text-gray-600 mb-4">{community.description}</p>
-                <div className="flex items-center gap-4 text-sm text-gray-500">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{community.name}</h1>
+                <p className="text-gray-600 mb-4 text-sm sm:text-base">{community.description}</p>
+                <div className="flex items-center gap-4 text-xs sm:text-sm text-gray-500">
                   {formatLocationDisplay() && (
                     <>
                       <span>{formatLocationDisplay()}</span>
@@ -405,21 +412,24 @@ export default function CommunityPage() {
                 </div>
               </div>
               {user && !isMember && (
-                <Button onClick={handleJoinCommunity} className="bg-red-600 hover:bg-red-700">
+                <Button
+                  onClick={handleJoinCommunity}
+                  className="bg-red-600 hover:bg-red-700 w-full sm:w-auto text-sm sm:text-base py-2 sm:py-3"
+                >
                   Join Community
                 </Button>
               )}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
             {/* Main Content */}
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-3 space-y-6">
               {/* Community Features */}
               <CommunityFeatures communitySlug={communitySlug} />
 
               {/* Post Feed */}
-              <div className="bg-white rounded-lg shadow-sm border p-6">
+              <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-6">
                 {postsLoading ? (
                   <div className="space-y-4">
                     <Skeleton className="h-32 w-full" />
@@ -443,14 +453,22 @@ export default function CommunityPage() {
             {/* Sidebar */}
             <div className="lg:col-span-1">
               <CommunitySidebar
-                address={community.name}
                 area={community.area}
                 region={community.region}
                 communitySlug={communitySlug}
+                createdAt={community.created_at}
+                onShowMembers={() => setShowMembersModal(true)}
               />
             </div>
           </div>
         </div>
+
+        {/* Members Modal */}
+        <MembersModal
+          isOpen={showMembersModal}
+          onClose={() => setShowMembersModal(false)}
+          communitySlug={communitySlug}
+        />
       </div>
     </>
   )

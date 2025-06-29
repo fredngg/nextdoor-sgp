@@ -1,54 +1,71 @@
 "use server"
 
 import { supabase } from "@/lib/supabase"
+import { revalidatePath } from "next/cache"
 
-interface CreateGroupBuyData {
-  title: string
-  description: string
-  category: string
-  target_quantity: string
-  price_individual: string
-  price_group: string
-  deadline: string
-  pickup_location: string
-}
-
-export async function createGroupBuy(formData: CreateGroupBuyData, communitySlug: string, organizerId: string) {
+export async function createGroupBuy(formData: FormData) {
   try {
-    const { data: groupBuy, error: groupBuyError } = await supabase
+    const title = formData.get("title") as string
+    const description = formData.get("description") as string
+    const targetPrice = Number.parseFloat(formData.get("targetPrice") as string)
+    const minParticipants = Number.parseInt(formData.get("minParticipants") as string)
+    const maxParticipants = Number.parseInt(formData.get("maxParticipants") as string)
+    const endDate = formData.get("endDate") as string
+    const communitySlug = formData.get("communitySlug") as string
+    const organizerId = formData.get("organizerId") as string
+
+    if (
+      !title ||
+      !description ||
+      !targetPrice ||
+      !minParticipants ||
+      !maxParticipants ||
+      !endDate ||
+      !communitySlug ||
+      !organizerId
+    ) {
+      return {
+        success: false,
+        error: "All fields are required",
+      }
+    }
+
+    const { data, error } = await supabase
       .from("group_buys")
       .insert({
-        title: formData.title,
-        description: formData.description,
-        category: formData.category,
-        target_quantity: Number.parseInt(formData.target_quantity),
-        price_individual: formData.price_individual ? Number.parseFloat(formData.price_individual) : null,
-        price_group: Number.parseFloat(formData.price_group),
-        deadline: formData.deadline,
-        pickup_location: formData.pickup_location,
-        organizer_id: organizerId,
+        title,
+        description,
+        target_price: targetPrice,
+        min_participants: minParticipants,
+        max_participants: maxParticipants,
+        end_date: endDate,
         community_slug: communitySlug,
-        status: "pending",
-        current_quantity: 1,
+        organizer_id: organizerId,
+        status: "active",
       })
       .select()
-      .maybeSingle()
+      .single()
 
-    if (groupBuyError) {
-      console.error("Error creating group buy:", groupBuyError)
-      return { success: false, error: groupBuyError.message }
+    if (error) {
+      console.error("Error creating group buy:", error)
+      return {
+        success: false,
+        error: "Failed to create group buy",
+      }
     }
 
-    if (!groupBuy) {
-      return { success: false, error: "Failed to create group buy" }
-    }
+    revalidatePath(`/community/${communitySlug}`)
+    revalidatePath(`/community/${communitySlug}/groupbuys`)
 
-    return { success: true, data: groupBuy }
+    return {
+      success: true,
+      data,
+    }
   } catch (error) {
-    console.error("Unexpected error creating group buy:", error)
+    console.error("Error in createGroupBuy:", error)
     return {
       success: false,
-      error: error instanceof Error ? error.message : "An unexpected error occurred",
+      error: "An unexpected error occurred",
     }
   }
 }
