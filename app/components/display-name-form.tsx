@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,14 +42,14 @@ export function DisplayNameForm({
     setError("")
 
     try {
-      console.log("Submitting display name:", displayName)
+      console.log("🔄 DisplayNameForm: Submitting display name:", displayName)
       const success = await onSubmit(displayName.trim())
 
       if (!success) {
         setError("Failed to save display name. Please try again.")
       }
     } catch (err) {
-      console.error("Error in display name form:", err)
+      console.error("💥 DisplayNameForm: Error in form submission:", err)
       setError("An error occurred. Please try again.")
     } finally {
       setSubmitting(false)

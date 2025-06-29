@@ -16,23 +16,20 @@ interface FirstLoginModalProps {
 export function FirstLoginModal({ isOpen, onComplete, userId }: FirstLoginModalProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  // Temporarily disable the modal
-  if (true) return null
+
+  console.log("🔍 FirstLoginModal: Rendering with isOpen:", isOpen, "userId:", userId)
 
   const handleSubmit = async (displayName: string): Promise<boolean> => {
     try {
       setIsSubmitting(true)
 
-      console.log("🔄 FirstLoginModal: Starting display name save process")
+      console.log("🔄 FirstLoginModal: Setting display name for user:", userId)
       console.log("📝 Display name:", displayName)
-      console.log("👤 User ID:", userId)
 
       const success = await setUserDisplayName(userId, displayName)
 
-      console.log("✅ Save result:", success)
-
       if (success) {
-        console.log("🎉 Display name saved successfully, calling onComplete")
+        console.log("✅ FirstLoginModal: Display name set successfully")
         toast({
           title: "Welcome to nextdoor.sg!",
           description: `Your display name has been set to "${displayName}".`,
@@ -40,7 +37,7 @@ export function FirstLoginModal({ isOpen, onComplete, userId }: FirstLoginModalP
         onComplete(displayName)
         return true
       } else {
-        console.error("❌ Failed to save display name")
+        console.error("❌ FirstLoginModal: Failed to set display name")
         toast({
           title: "Error",
           description: "Failed to save your display name. Please try again.",
@@ -49,7 +46,7 @@ export function FirstLoginModal({ isOpen, onComplete, userId }: FirstLoginModalP
         return false
       }
     } catch (error) {
-      console.error("💥 Error in FirstLoginModal handleSubmit:", error)
+      console.error("💥 FirstLoginModal: Error setting display name:", error)
       toast({
         title: "Error",
         description: "An unexpected error occurred. Please try again.",
@@ -60,12 +57,6 @@ export function FirstLoginModal({ isOpen, onComplete, userId }: FirstLoginModalP
       setIsSubmitting(false)
     }
   }
-
-  // Add debug logging
-  console.log("🔍 FirstLoginModal render state:")
-  console.log("- isOpen:", isOpen)
-  console.log("- userId:", userId)
-  console.log("- isSubmitting:", isSubmitting)
 
   return (
     <Dialog open={isOpen} onOpenChange={() => {}} modal>
@@ -81,7 +72,6 @@ export function FirstLoginModal({ isOpen, onComplete, userId }: FirstLoginModalP
             Let's set up your profile so your neighbors can recognize you in the community.
           </DialogDescription>
         </DialogHeader>
-
         <div className="mt-6">
           <DisplayNameForm onSubmit={handleSubmit} submitLabel="Complete Setup" isLoading={isSubmitting} />
         </div>

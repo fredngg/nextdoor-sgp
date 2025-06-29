@@ -3,66 +3,96 @@
 import type React from "react"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
+import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { supabase } from "@/lib/supabase"
 import { Navigation } from "../components/navigation"
-import { Mail, Lock, AlertCircle, Chrome } from "lucide-react"
+import { Eye, EyeOff, AlertCircle, Mail } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
+import { useEffect } from "react" // Import useEffect for useReactEffect
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { toast } = useToast()
 
-  const handlePasswordSignIn = async (e: React.FormEvent) => {
+  // Check for error from URL params (e.g., from auth callback)
+  useEffect(() => {
+    // Replace useReactEffect with useEffect
+    const urlError = searchParams.get("error")
+    if (urlError) {
+      if (urlError === "auth_callback_error") {
+        setError("Authentication failed. Please try signing in again.")
+      } else {
+        setError(decodeURIComponent(urlError))
+      }
+    }
+  }, [searchParams])
+
+  const handlePasswordSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setLoading(true)
+    setIsLoading(true)
     setError("")
 
+    console.log("🔄 Login: Attempting sign in for:", email)
+
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: password,
       })
 
-      if (error) {
-        setError(error.message)
+      console.log("✅ Login: Supabase response:", {
+        user: data.user
+          ? {
+              id: data.user.id,
+              email: data.user.email,
+              email_confirmed_at: data.user.email_confirmed_at,
+            }
+          : null,
+        session: data.session ? "Session created" : "No session",
+        error: signInError,
+      })
+
+      if (signInError) {
+        console.error("❌ Login: Sign in error:", signInError)
+
+        if (signInError.message.includes("Email not confirmed")) {
+          setError("Please check your email and click the confirmation link before signing in.")
+        } else if (signInError.message.includes("Invalid login credentials")) {
+          setError("Invalid email or password. Please check your credentials and try again.")
+        } else {
+          setError(signInError.message)
+        }
+        return
+      }
+
+      if (data.user && data.session) {
+        console.log("🎉 Login: Sign in successful")
+        toast({
+          title: "Welcome back!",
+          description: "You have been signed in successfully.",
+        })
+        router.push("/")
       } else {
-        // Redirect to /me on successful login
-        router.push("/me")
-        router.refresh() // Force a refresh to update auth state in layout
+        console.error("❌ Login: No user or session returned")
+        setError("Sign in failed. Please try again.")
       }
     } catch (err) {
+      console.error("💥 Login: Unexpected error:", err)
       setError("An unexpected error occurred. Please try again.")
     } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleGoogleSignIn = async () => {
-    setLoading(true)
-    setError("")
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      })
-      if (error) {
-        setError(error.message)
-      }
-    } catch (err) {
-      setError("An unexpected error occurred with Google Sign-In.")
-    } finally {
-      // setLoading(false) // Page will redirect, so no need to set loading to false
+      setIsLoading(false)
     }
   }
 
@@ -75,79 +105,74 @@ export default function LoginPage() {
             <Card>
               <CardHeader className="text-center">
                 <CardTitle className="text-2xl">Welcome Back</CardTitle>
-                <CardDescription>Sign in to your account to continue</CardDescription>
+                <CardDescription>Sign in to your account</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <Button
-                    variant="outline"
-                    className="w-full bg-transparent"
-                    onClick={handleGoogleSignIn}
-                    disabled={loading}
-                  >
-                    <Chrome className="mr-2 h-4 w-4" />
-                    Sign in with Google
-                  </Button>
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+                <form onSubmit={handlePasswordSignIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email Address</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className="pl-10"
+                        required
+                        disabled={isLoading}
+                      />
                     </div>
                   </div>
 
-                  <form onSubmit={handlePasswordSignIn} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email Address</Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <Input
-                          id="email"
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="you@example.com"
-                          className="pl-10"
-                          required
-                        />
-                      </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter your password"
+                        className="pr-10"
+                        required
+                        disabled={isLoading}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        disabled={isLoading}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="password">Password</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <Input
-                          id="password"
-                          type="password"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className="pl-10"
-                          required
-                        />
-                      </div>
-                    </div>
+                  </div>
 
-                    {error && (
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>{error}</AlertDescription>
-                      </Alert>
-                    )}
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
 
-                    <Button type="submit" className="w-full bg-red-600 hover:bg-red-700" disabled={loading}>
-                      {loading ? "Signing in..." : "Sign In"}
-                    </Button>
-                  </form>
-                </div>
+                  <Button type="submit" className="w-full bg-red-600 hover:bg-red-700" disabled={isLoading}>
+                    {isLoading ? "Signing in..." : "Sign In"}
+                  </Button>
+                </form>
 
-                <div className="mt-6 text-center text-sm text-gray-600">
+                <div className="mt-6 text-center text-sm text-gray-600 space-y-2">
                   <p>
                     Don't have an account?{" "}
                     <Link href="/register" className="text-red-600 hover:text-red-700 font-medium">
-                      Sign up
+                      Create one
+                    </Link>
+                  </p>
+                  <p>
+                    <Link href="/forgot-password" className="text-red-600 hover:text-red-700 font-medium">
+                      Forgot your password?
                     </Link>
                   </p>
                 </div>
